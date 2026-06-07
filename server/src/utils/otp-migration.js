@@ -72,7 +72,7 @@ function parseOtpParameters(buffer) {
 
       switch (fieldNum) {
         case 4:
-          otp.algorithm = 'SHA1';
+          otp.algorithm = mapAlgorithm(value);
           break;
         case 5:
           otp.digits = value;
@@ -138,6 +138,15 @@ function varintLength(buffer, offset) {
     offset++;
   }
   return length + 1;
+}
+
+function mapAlgorithm(value) {
+  const algorithmMap = {
+    1: 'SHA1',
+    2: 'SHA256',
+    3: 'SHA512',
+  };
+  return algorithmMap[value] || 'SHA1';
 }
 
 function base32Encode(buffer) {

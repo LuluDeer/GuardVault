@@ -167,7 +167,7 @@ POST /api/admin/init
 | safeStorage 安全存 Token | ✅ | — |
 | 部门管理（增/删/改） | — | ✅ |
 | 服务账号管理（增/删/改/重置密钥） | — | ✅ |
-| 服务录入：手动 / 扫码 / CSV 批量 | — | ✅ |
+| 服务录入：手动 / 扫码 / CSV 批量 / 谷歌OTP导入 | — | ✅ |
 | 授权管理（单/批量） | — | ✅ |
 | 用户管理（增/删/改/禁） | — | ✅ |
 | 操作日志查询 + CSV 导出 | — | ✅ |
@@ -213,6 +213,11 @@ POST /api/admin/init
   - `/api/admin/service/scan-create`（扫码录入）
   - `/api/admin/service/:id/secret`（获取明文+二维码）
   - `/api/admin/service/:id/reset-secret`（重置密钥）
+- **导入管理**：`POST /api/admin/import/*`
+  - `/api/admin/import/parse-migration`（解析谷歌OTP迁移URL）
+  - `/api/admin/import/preview`（预览导入数据）
+  - `/api/admin/import/confirm`（确认导入）
+  - `/api/admin/import/parse-otpauth`（解析单个otpauth URL）
 - **授权管理**：`GET/POST /api/admin/grant/*`
   - 单个授权/撤销 + 批量授权/撤销
 - **审计报表**：`GET /api/admin/audit/*`
@@ -277,10 +282,18 @@ npm run build            # 产物在 dist/
 5. **dept_admin 跨部门操作会怎样？**  
    后端在 service / grant / dept 控制器中校验了部门归属，跨部门请求会返回 403。前端按 deptId 过滤，无需额外处理。
 
-6. **二维码密钥明文会暴露吗？**  
+6. **如何从谷歌验证码迁移服务？**  
+   在谷歌验证码中选择"转移账号"，可通过以下三种方式导入：
+   - **粘贴迁移 URL**：扫描显示的二维码获取迁移 URL（以 `otpauth-migration://` 开头），粘贴到导入页面
+   - **上传二维码图片**：直接上传谷歌验证码显示的迁移二维码图片
+   - **上传导出文件**：上传包含迁移 URL 的 .txt 文件
+   
+   导入后可选择要导入的服务并修改分类。
+
+7. **二维码密钥明文会暴露吗？**  
    数据库中 `encrypted_secret` 是 AES-256 加密的。明文仅在管理员打开"二维码"弹窗或调用 `/service/:id/secret` 接口时返回，且会写 `SERVICE_VIEW_SECRET` 审计日志。
 
-7. **TOTP 周期、位数、算法能改吗？**  
+8. **TOTP 周期、位数、算法能改吗？**  
    新增 / 编辑服务时可调 `digits`（6/8）/ `period`（30/60秒）/ `algorithm`（SHA1/SHA256/SHA512）。
 
 ## 端到端测试流程

@@ -61,6 +61,8 @@ export async function previewImport(req, reply) {
   return success(reply, previewItems);
 }
 
+const MAX_IMPORT_COUNT = 100;
+
 export async function confirmImport(req, reply) {
   const schema = z.object({
     items: z.array(z.object({
@@ -71,7 +73,7 @@ export async function confirmImport(req, reply) {
       category: z.string().optional(),
       digits: z.number().int().optional(),
       algorithm: z.string().optional(),
-    })),
+    })).max(MAX_IMPORT_COUNT, `单次导入不能超过 ${MAX_IMPORT_COUNT} 个服务`),
     deptId: z.number().int().positive(),
   });
 

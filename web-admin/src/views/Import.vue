@@ -24,6 +24,14 @@
           </el-button>
           <el-button
             type="primary"
+            :class="{ active: importMethod === 'image' }"
+            @click="importMethod = 'image'"
+          >
+            <el-icon><Picture /></el-icon>
+            {{ t('import.uploadImage') }}
+          </el-button>
+          <el-button
+            type="primary"
             :class="{ active: importMethod === 'file' }"
             @click="importMethod = 'file'"
           >
@@ -42,11 +50,24 @@
           <p class="tip">{{ t('import.urlTip') }}</p>
         </div>
 
+        <div v-if="importMethod === 'image'" class="method-content">
+          <div class="upload-area" @click="triggerImageInput" @dragover.prevent @drop.prevent="handleImageDrop">
+            <el-icon><Picture /></el-icon>
+            <p>{{ t('import.imageUploadArea') }}</p>
+            <p class="file-tip">{{ t('import.imageUploadTip') }}</p>
+            <input type="file" ref="imageInput" accept="image/*" style="display:none" @change="handleImageChange" />
+          </div>
+          <div v-if="previewImage" class="image-preview">
+            <img :src="previewImage" alt="QR Code Preview" />
+            <el-button text @click="clearPreviewImage">{{ t('import.removeImage') }}</el-button>
+          </div>
+        </div>
+
         <div v-if="importMethod === 'file'" class="method-content">
           <div class="upload-area" @click="triggerFileInput" @dragover.prevent @drop.prevent="handleDrop">
             <el-icon><UploadFilled /></el-icon>
             <p>{{ t('import.uploadArea') }}</p>
-            <p class="file-tip">{{ t('import.uploadTip') }}</p>
+            <p class="file-tip">{{ t('import.fileUploadTip') }}</p>
             <input type="file" ref="fileInput" accept=".txt" style="display:none" @change="handleFileChange" />
           </div>
         </div>
@@ -170,12 +191,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { Upload, Link, Document, UploadFilled, List, Check, Close, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { Upload, Link, Picture, Document, UploadFilled, List, Check, Close, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { parseMigration as parseMigrationApi, confirmImport as apiConfirmImport } from '@/api/import'
 import { getAllDepts } from '@/api/dept'
 import { getCategories } from '@/api/service'
 import { ElMessage } from 'element-plus'
 import { useI18n } from '@/i18n'
+import jsQR from 'jsqr'
 
 const { t } = useI18n()
 
@@ -192,10 +214,20 @@ const importResult = ref({ successCount: 0, failCount: 0, results: [] })
 const showSecretDialog = ref(false)
 const visibleSecret = ref('')
 const fileInput = ref(null)
+const imageInput = ref(null)
+const previewImage = ref('')
+
+const hasFile = ref(false)
 
 const canParse = computed(() => {
   if (importMethod.value === 'url') {
     return migrationUrl.value.trim().startsWith('otpauth-migration://')
+  }
+  if (importMethod.value === 'image') {
+    return previewImage.value !== ''
+  }
+  if (importMethod.value === 'file') {
+    return hasFile.value
   }
   return false
 })
@@ -252,14 +284,16 @@ async function doParseMigration() {
 function handleFileChange(event) {
   const file = event.target.files[0]
   if (file) {
-    processFile(file)
+    hasFile.value = true
+    processTextFile(file)
   }
 }
 
 function handleDrop(event) {
   const file = event.dataTransfer.files[0]
   if (file) {
-    processFile(file)
+    hasFile.value = true
+    processTextFile(file)
   }
 }
 
@@ -267,7 +301,7 @@ function triggerFileInput() {
   fileInput.value?.click()
 }
 
-function processFile(file) {
+function processTextFile(file) {
   const reader = new FileReader()
   reader.onload = async (e) => {
     const content = e.target.result
@@ -276,7 +310,6 @@ function processFile(file) {
       const migrationLine = lines.find(line => line.startsWith('otpauth-migration://'))
       if (migrationLine) {
         migrationUrl.value = migrationLine.trim()
-        importMethod.value = 'url'
         await doParseMigration()
       } else {
         ElMessage.warning(t('import.fileNoUrl'))
@@ -284,6 +317,79 @@ function processFile(file) {
     }
   }
   reader.readAsText(file, 'utf-8')
+}
+
+function handleImageChange(event) {
+  const file = event.target.files[0]
+  if (file) {
+    processImageFile(file)
+  }
+}
+
+function handleImageDrop(event) {
+  const file = event.dataTransfer.files[0]
+  if (file && file.type.startsWith('image/')) {
+    processImageFile(file)
+  }
+}
+
+function triggerImageInput() {
+  imageInput.value?.click()
+}
+
+function clearPreviewImage() {
+  previewImage.value = ''
+  migrationUrl.value = ''
+  if (imageInput.value) {
+    imageInput.value.value = ''
+  }
+}
+
+function processImageFile(file) {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const result = e.target.result
+    if (typeof result === 'string') {
+      previewImage.value = result
+      decodeQrCode(result)
+    }
+  }
+  reader.readAsDataURL(file)
+}
+
+async function decodeQrCode(dataUrl) {
+  try {
+    const img = new Image()
+    img.crossOrigin = 'Anonymous'
+    img.src = dataUrl
+
+    await new Promise((resolve, reject) => {
+      img.onload = resolve
+      img.onerror = reject
+    })
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    canvas.width = img.width
+    canvas.height = img.height
+    ctx.drawImage(img, 0, 0, img.width, img.height)
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const code = jsQR(imageData.data, imageData.width, imageData.height)
+
+    if (code) {
+      migrationUrl.value = code.data
+      if (code.data.startsWith('otpauth-migration://')) {
+        await doParseMigration()
+      } else {
+        ElMessage.warning(t('import.notMigrationQr'))
+      }
+    } else {
+      ElMessage.error(t('import.qrDecodeFailed'))
+    }
+  } catch (error) {
+    ElMessage.error(t('import.qrDecodeFailed'))
+  }
 }
 
 function selectAll() {
@@ -358,6 +464,7 @@ function resetImport() {
   migrationUrl.value = ''
   importItems.value = []
   importResult.value = { successCount: 0, failCount: 0, results: [] }
+  previewImage.value = ''
 }
 
 onMounted(() => {
@@ -432,6 +539,21 @@ onMounted(() => {
 .upload-area .el-icon { font-size: 48px; color: #c0c4cc; margin-bottom: 12px; }
 .upload-area p { margin: 0; color: #606266; }
 .file-tip { font-size: 12px; color: #909399; margin-top: 8px !important; }
+
+.image-preview {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.image-preview img {
+  max-width: 300px;
+  max-height: 300px;
+  border-radius: 8px;
+  border: 1px solid #e4e7ed;
+}
 
 .dept-select { margin-bottom: 16px; }
 
