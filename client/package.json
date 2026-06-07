@@ -1,0 +1,22 @@
+{
+  "name": "totp-client",
+  "version": "1.0.0",
+  "description": "TOTP PC Client",
+  "main": "src/main/index.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1",
+    "vite": "^5.0.0"
+  }
+}

@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model SystemUser {
+  id            Int          @id @default(autoincrement())
+  username      String       @unique @db.VarChar(32)
+  password      String       @db.VarChar(128)
+  role          String       @db.VarChar(16)
+  status        Int          @default(1)
+  failCount     Int          @default(0)        @map("fail_count")
+  lockedUntil   DateTime?    @map("locked_until")
+  lastLoginTime DateTime?    @map("last_login_time")
+  lastLoginIp   String?      @db.VarChar(45)    @map("last_login_ip")
+  createdAt     DateTime     @default(now())    @map("created_at")
+  updatedAt     DateTime     @updatedAt         @map("updated_at")
+  @@map("system_user")
+}
+
+model UserTotpKey {
+  id              Int        @id @default(autoincrement())
+  userId          Int        @unique  @map("user_id")
+  encryptedSecret String     @db.VarChar(512) @map("encrypted_secret")
+  isEnable        Int        @default(0)      @map("is_enable")
+  resetCount      Int        @default(0)      @map("reset_count")
+  resetTime       DateTime?  @map("reset_time")
+  createdAt       DateTime   @default(now())  @map("created_at")
+  @@map("user_totp_key")
+}
+
+model SystemLog {
+  id             BigInt     @id @default(autoincrement())
+  operatorId     Int        @map("operator_id")
+  operatorName   String     @db.VarChar(32)  @map("operator_name")
+  targetUserId   Int?       @map("target_user_id")
+  targetUsername String?    @db.VarChar(32)  @map("target_username")
+  actionType     String     @db.VarChar(32)  @map("action_type")
+  actionDesc     String     @db.VarChar(512) @map("action_desc")
+  clientIp       String     @db.VarChar(45)  @map("client_ip")
+  userAgent      String?    @db.VarChar(256) @map("user_agent")
+  result         Int
+  failReason     String?    @db.VarChar(256) @map("fail_reason")
+  createdAt      DateTime   @default(now())  @map("created_at")
+  @@index([createdAt])
+  @@index([operatorId])
+  @@index([actionType])
+  @@map("system_log")
+}
+
+model SystemConfig {
+  id          Int      @id @default(autoincrement())
+  configKey   String   @unique @db.VarChar(64)  @map("config_key")
+  configValue String   @db.VarChar(256)         @map("config_value")
+  description String?  @db.VarChar(256)
+  updatedAt   DateTime @updatedAt               @map("updated_at")
+  updatedBy   String?  @db.VarChar(32)          @map("updated_by")
+  @@map("system_config")
+}

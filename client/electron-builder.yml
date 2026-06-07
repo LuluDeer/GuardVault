@@ -1,0 +1,20 @@
+appId: com.example.totp-client
+productName: TOTP客户端
+directories:
+  output: dist
+files:
+  - "src/**/*"
+  - "index.html"
+  - "package.json"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  requestedExecutionLevel: requireAdministrator
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico

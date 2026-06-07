@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TOTP 安全令牌</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary-color: #6366f1;
+      --primary-dark: #4f46e5;
+      --secondary-color: #8b5cf6;
+      --success-color: #22c55e;
+      --warning-color: #f59e0b;
+      --danger-color: #ef4444;
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+    }
+    
+    body { 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+      background: var(--bg-color);
+      min-height: 100vh;
+      overflow: hidden;
+      min-width: 800px;
+    }
+    
+    /* 加载状态 */
+    .loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .loading-screen.hidden { display: none; }
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text {
+      color: white;
+      margin-top: 20px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    /* Toast提示 */
+    .toast {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 10000;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .toast.show { 
+      opacity: 1; 
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast.success { background: rgba(34, 197, 94, 0.9); }
+    .toast.error { background: rgba(239, 68, 68, 0.95); color: white; }
+    
+    /* 锁定遮罩 */
+    .lock-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.95);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9998;
+      backdrop-filter: blur(8px);
+    }
+    .lock-overlay.hidden { display: none; }
+    .lock-controls {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 4px;
+    }
+    .lock-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 40px;
+      border-radius: 16px;
+      text-align: center;
+      width: 360px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .lock-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lock-icon svg {
+      width: 40px;
+      height: 40px;
+      fill: white;
+    }
+    .lock-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    .lock-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+    .lock-input {
+      width: 100%;
+      height: 44px;
+      padding: 0 16px;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      background: rgba(0,0,0,0.2);
+      color: var(--text-primary);
+      margin-bottom: 20px;
+      transition: border-color 0.2s;
+    }
+    .lock-input:focus {
+      border-color: var(--primary-color);
+    }
+    .lock-btn {
+      width: 100%;
+      height: 44px;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .lock-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+    }
+    
+    /* 窗口容器 */
+    .window-container {
+      width: 100%;
+      height: 100vh;
+      background: var(--bg-color);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    /* 标题栏 */
+    .title-bar {
+      height: 48px;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      -webkit-app-region: drag;
+      cursor: move;
+      flex-shrink: 0;
+      opacity: 1;
+      position: relative;
+    }
+    
+    .title-bar-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      -webkit-app-region: no-drag;
+    }
+    
+    .title-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    
+    .title-bar .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-left: 8px;
+    }
+    
+    .title-bar .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .title-bar .logo-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: white;
+    }
+    
+    .title-bar .title {
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .title-bar .user-info {
+      color: var(--text-secondary);
+      font-size: 12px;
+      margin-right: 12px;
+      padding: 4px 12px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 20px;
+    }
+    
+    .title-bar .controls {
+      display: flex;
+      -webkit-app-region: no-drag;
+    }
+    
+    .control-btn {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 2px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-secondary);
+      opacity: 1;
+      background: transparent;
+    }
+    
+    .control-btn:hover {
+      background: rgba(255,255,255,0.08);
+      color: var(--text-primary);
+    }
+    
+    .control-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+      opacity: 1;
+    }
+    
+    .control-btn.close {
+      color: var(--text-secondary);
+    }
+    
+    .control-btn.close:hover {
+      background: var(--danger-color);
+      color: white;
+    }
+    
+    /* 倒计时进度条 */
+    .countdown-bar {
+      height: 8px;
+      background: rgba(0,0,0,0.3);
+      flex-shrink: 0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .countdown-progress {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      transition: width 0.1s ease-out;
+      float: right;
+      border-radius: 4px;
+    }
+    
+    .countdown-progress.low {
+      background: linear-gradient(90deg, var(--warning-color) 0%, var(--danger-color) 100%);
+    }
+    
+    /* 内容区域 */
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    /* 头部工具栏 */
+    .toolbar {
+      padding: 12px 16px;
+      background: rgba(30, 41, 59, 0.5);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    /* 分组按钮 */
+    .group-btns {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    
+    .group-btn {
+      padding: 6px 12px;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      font-size: 12px;
+      background: rgba(0,0,0,0.2);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .group-btn:hover {
+      border-color: var(--primary-color);
+      color: var(--text-primary);
+    }
+    
+    .group-btn.active {
+      background: var(--primary-color);
+      border-color: var(--primary-color);
+      color: white;
+    }
+    
+    .sort-btn {
+      padding: 6px 12px;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      font-size: 12px;
+      background: rgba(0,0,0,0.2);
+      color: var(--text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+    
+    .sort-btn:hover {
+      border-color: var(--primary-color);
+      background: rgba(99, 102, 241, 0.1);
+    }
+    
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .search-input {
+      padding: 8px 16px;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      font-size: 13px;
+      background: rgba(0,0,0,0.2);
+      color: var(--text-primary);
+      width: 260px;
+      transition: border-color 0.2s;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    .btn {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-secondary {
+      background: rgba(0,0,0,0.2);
+      color: var(--text-primary);
+      border: 1px solid var(--card-border);
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.08);
+    }
+    
+    /* 标题栏锁定按钮 */
+    .title-bar-right .lock-btn {
+      padding: 3px 8px;
+      border: 1px solid var(--card-border);
+      border-radius: 3px;
+      font-size: 10px;
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger-color);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.2s;
+    }
+    
+    .title-bar-right .lock-btn:hover {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: var(--danger-color);
+    }
+    
+    /* 标题栏退出登录按钮 */
+    .title-bar-right .btn-secondary {
+      padding: 3px 8px;
+      font-size: 10px;
+      border-radius: 3px;
+      margin-right: 4px;
+    }
+    
+    /* 标题栏锁定倒计时 */
+    .title-bar-right .lock-countdown {
+      font-size: 10px;
+      color: var(--text-secondary);
+      padding: 3px 8px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    
+    .title-bar-right .lock-countdown.low {
+      color: var(--warning-color);
+      background: rgba(245, 158, 11, 0.15);
+    }
+    
+    /* 验证码卡片列表 */
+    .cards-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .totp-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .totp-card:hover {
+      border-color: var(--primary-color);
+      background: rgba(99, 102, 241, 0.05);
+      transform: translateX(2px);
+    }
+    
+    .totp-card:active {
+      transform: translateX(1px);
+    }
+    
+    .totp-card.copied {
+      border-color: var(--success-color);
+    }
+    
+    /* 左侧：名称和标签 */
+    .card-left {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .card-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .card-tags {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    
+    .tag {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .tag.platform {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--success-color);
+    }
+    
+    .tag.group {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+    }
+    
+    /* 中间：验证码 */
+    .card-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      width: 120px;
+      flex-shrink: 0;
+    }
+    
+    .code-display {
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 6px;
+      color: var(--text-primary);
+      min-width: 140px;
+      text-align: center;
+    }
+    
+    .code-display.copied {
+      color: var(--success-color);
+    }
+    
+    .countdown-text {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    
+    .countdown-text.low {
+      color: var(--danger-color);
+    }
+    
+    /* 右侧：备注和操作 */
+    .card-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .card-note {
+      font-size: 12px;
+      color: var(--text-secondary);
+      max-width: 150px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .card-actions {
+      display: flex;
+      gap: 6px;
+    }
+    
+    .action-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .action-btn.copy {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--success-color);
+    }
+    
+    .action-btn.copy:hover {
+      background: rgba(34, 197, 94, 0.25);
+    }
+    
+    .action-btn.edit {
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--primary-color);
+    }
+    
+    .action-btn.edit:hover {
+      background: rgba(99, 102, 241, 0.25);
+    }
+    
+    .action-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+    
+    /* 空状态 */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+    }
+    
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      fill: var(--text-muted);
+    }
+    
+    .empty-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    
+    .empty-desc {
+      font-size: 13px;
+    }
+    
+    /* 登录页面 */
+    .login-container {
+      width: 100%;
+      height: calc(100vh - 48px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+    }
+    
+    .login-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 48px;
+      border-radius: 20px;
+      text-align: center;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    
+    .login-header {
+      margin-bottom: 32px;
+    }
+    
+    .login-logo {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 40px rgba(99, 102, 241, 0.4);
+    }
+    
+    .login-logo svg {
+      width: 40px;
+      height: 40px;
+      fill: white;
+    }
+    
+    .login-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    
+    .login-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    
+    .input-group {
+      margin-bottom: 20px;
+    }
+    
+    .input-group label {
+      display: block;
+      text-align: left;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    
+    .input-group input {
+      width: 100%;
+      height: 48px;
+      padding: 0 16px;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+      background: rgba(0,0,0,0.2);
+      color: var(--text-primary);
+      transition: border-color 0.2s;
+    }
+    
+    .input-group input:focus {
+      border-color: var(--primary-color);
+    }
+    
+    .input-group input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    .error {
+      color: var(--danger-color);
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    
+    .error svg {
+      width: 14px;
+      height: 14px;
+      fill: var(--danger-color);
+    }
+    
+    .status {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .status.online { color: var(--success-color); }
+    .status.offline { color: var(--danger-color); }
+    
+    .btn-primary {
+      width: 100%;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+    }
+    
+    /* 编辑弹窗 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(4px);
+    }
+    
+    .modal-overlay.hidden { display: none; }
+    
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 28px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .modal-title svg {
+      width: 20px;
+      height: 20px;
+      fill: var(--primary-color);
+    }
+    
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    
+    .modal-btn {
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    
+    .modal-btn.confirm {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+    }
+    
+    .modal-btn.confirm:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+    }
+    
+    .modal-btn.cancel {
+      background: rgba(0,0,0,0.2);
+      color: var(--text-secondary);
+    }
+    
+    .modal-btn.cancel:hover {
+      background: rgba(255,255,255,0.08);
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+  <!-- 加载屏幕 -->
+  <div class="loading-screen" id="loadingScreen">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">正在加载...</div>
+  </div>
+  
+  <!-- Toast提示 -->
+  <div class="toast" id="toast"></div>
+  
+  <!-- 锁定遮罩 -->
+  <div class="lock-overlay hidden" id="lockOverlay">
+    <div class="lock-controls">
+      <div class="control-btn minimize" id="lockMinimizeBtn">
+        <svg viewBox="0 0 24 24">
+          <rect x="6" y="11" width="12" height="2" rx="1"/>
+        </svg>
+      </div>
+      <div class="control-btn close" id="lockCloseBtn">
+        <svg viewBox="0 0 24 24">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </div>
+    </div>
+    <div class="lock-card">
+      <div class="lock-icon">
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0110 0v4"/>
+        </svg>
+      </div>
+      <div class="lock-title">会话已锁定</div>
+      <div class="lock-desc">请输入密码解锁</div>
+      <input type="password" class="lock-input" id="lockPassword" placeholder="密码"/>
+      <button class="lock-btn" id="unlockBtn">解锁</button>
+    </div>
+  </div>
+  
+  <div class="window-container">
+    <!-- 标题栏 -->
+    <div class="title-bar">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+            <path d="M11 16.5l-1.45-1.32C5.4 12.36 2 9.24 2 5.5 2 4.12 3.12 3 4.5 3c1.38 0 2.5 1.12 2.5 2.5 0 3.74 3.4 6.86 8.55 11.54L13 16.5l-2 2z"/>
+          </svg>
+        </div>
+        <div class="title">TOTP 安全令牌</div>
+      </div>
+      
+      <!-- 用户名放在正中间 -->
+      <div class="title-bar-center">
+        <div class="user-info" id="userInfo">未登录</div>
+      </div>
+      
+      <!-- 右侧：锁定功能和控制按钮 -->
+      <div class="title-bar-right">
+        <div id="lockSection" style="display: none; align-items: center; gap: 8px;">
+          <div class="lock-countdown" id="lockCountdown">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <span id="lockTimeDisplay">2:00</span>
+          </div>
+          <button class="lock-btn" id="lockBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            锁定
+          </button>
+          <button class="btn btn-secondary" id="logoutBtn">退出登录</button>
+        </div>
+        <div class="controls">
+          <div class="control-btn minimize" id="minimizeBtn">
+            <svg viewBox="0 0 24 24">
+              <rect x="6" y="11" width="12" height="2" rx="1"/>
+            </svg>
+          </div>
+          <div class="control-btn close" id="closeBtn">
+            <svg viewBox="0 0 24 24">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 倒计时进度条 -->
+    <div class="countdown-bar">
+      <div class="countdown-progress" id="countdownProgress" style="width: 100%"></div>
+    </div>
+    
+    <!-- 内容区域 -->
+    <div class="content" id="app">
+      <!-- 登录页面 -->
+      <div v-if="!token" class="login-container">
+        <div class="login-card">
+          <div class="login-header">
+            <div class="login-logo">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+                <path d="M11 16.5l-1.45-1.32C5.4 12.36 2 9.24 2 5.5 2 4.12 3.12 3 4.5 3c1.38 0 2.5 1.12 2.5 2.5 0 3.74 3.4 6.86 8.55 11.54L13 16.5l-2 2z"/>
+              </svg>
+            </div>
+            <div class="login-title">TOTP 安全令牌</div>
+            <div class="login-desc">保护您的账户安全，随时随地获取验证码</div>
+          </div>
+          
+          <div v-if="error" class="error">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 8v4m0 4h.01"/>
+            </svg>
+            {{ error }}
+          </div>
+          
+          <div class="input-group">
+            <label>用户名</label>
+            <input v-model="username" placeholder="请输入用户名" />
+          </div>
+          <div class="input-group">
+            <label>密码</label>
+            <input v-model="password" type="password" placeholder="请输入密码" />
+          </div>
+          <button class="btn-primary" @click="login">登 录</button>
+          <div class="status">状态: <span :class="isOnline ? 'online' : 'offline'">{{ isOnline ? '在线' : '离线' }}</span></div>
+        </div>
+      </div>
+      
+      <!-- 主页面 -->
+      <template v-else>
+        <!-- 工具栏 -->
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <div class="group-btns">
+              <button 
+                class="group-btn" 
+                :class="{ active: selectedGroup === '' }"
+                @click="selectedGroup = ''"
+              >
+                全部
+              </button>
+              <button 
+                v-for="group in groups" 
+                :key="group"
+                class="group-btn" 
+                :class="{ active: selectedGroup === group }"
+                @click="selectedGroup = group"
+              >
+                {{ group }}
+              </button>
+            </div>
+            <button class="sort-btn" @click="toggleSort">
+              <span>{{ sortField === 'name' ? '名称' : '平台' }}</span>
+              <span>{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
+            </button>
+          </div>
+          <div class="toolbar-right">
+            <input type="text" class="search-input" v-model="searchKeyword" placeholder="搜索名称、平台或备注..." />
+          </div>
+        </div>
+        
+        <!-- 验证码卡片列表 -->
+        <div class="cards-container">
+          <div 
+            v-for="item in filteredItems" 
+            :key="item.id"
+            class="totp-card"
+            :class="{ copied: copiedId === item.id }"
+            @click="copyCode(item)"
+          >
+            <!-- 左侧：名称和标签 -->
+            <div class="card-left">
+              <div class="card-name">{{ item.name }}</div>
+              <div class="card-tags">
+                <span class="tag platform">{{ item.platform }}</span>
+                <span class="tag group">{{ item.group || '默认' }}</span>
+              </div>
+            </div>
+            
+            <!-- 中间：验证码 -->
+            <div class="card-center">
+              <div class="code-display" :class="{ copied: copiedId === item.id }">
+                {{ item.code || '------' }}
+              </div>
+            </div>
+            
+            <!-- 右侧：备注和操作 -->
+            <div class="card-right">
+              <div class="card-note">{{ item.note || '-' }}</div>
+              <div class="card-actions">
+                <button class="action-btn copy" @click.stop="copyCode(item)" title="复制">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+                <button class="action-btn edit" @click.stop="openEditModal(item)" title="编辑">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M11.41 12.59L9.83 14.17 14.17 18.5 19.5 13.17l-1.42-1.41z"/>
+                    <path d="M7 14l2 2H5v-2z"/>
+                    <path d="M12.5 2C8.91 2 6 4.91 6 8.5c0 1.21.38 2.35 1.02 3.31l1.41-1.41C7.55 9.85 7 8.19 7 6.5c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.09-1.35 3.85-3.41 4.41l1.41 1.41c.64-.96 1.02-2.1 1.02-3.31 0-3.59-2.91-6.5-6.5-6.5z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div v-if="filteredItems.length === 0" class="empty-state">
+            <svg viewBox="0 0 24 24">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
+              <path d="M7 12h2v5H7zm4-3h2v8h-2zm4-3h2v11h-2z"/>
+            </svg>
+            <div class="empty-title">暂无数据</div>
+            <div class="empty-desc">没有找到匹配的验证码记录</div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+  
+  <!-- 编辑弹窗 -->
+  <div class="modal-overlay hidden" id="editModal">
+    <div class="modal-card">
+      <div class="modal-title">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+        </svg>
+        编辑验证码信息
+      </div>
+      <div class="input-group">
+        <label>名称</label>
+        <input id="editName" placeholder="输入名称" disabled />
+      </div>
+      <div class="input-group">
+        <label>平台</label>
+        <input id="editPlatform" placeholder="例如: GitHub, Google" disabled />
+      </div>
+      <div class="input-group">
+        <label>分组</label>
+        <input id="editGroup" placeholder="例如: 工作, 个人" />
+      </div>
+      <div class="input-group">
+        <label>备注</label>
+        <input id="editNote" placeholder="添加备注信息" />
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn cancel" id="editCancel">取消</button>
+        <button class="modal-btn confirm" id="editConfirm">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+  <script>
+    // Toast提示
+    function showToast(msg, type = 'info', duration = 2500) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.className = `toast ${type}`;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), duration);
+    }
+    
+    // 标题栏按钮事件
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('minimizeBtn').addEventListener('click', () => {
+        window.electronAPI.minimizeWindow();
+      });
+      
+      document.getElementById('closeBtn').addEventListener('click', () => {
+        window.electronAPI.closeWindow();
+      });
+      
+      // 锁定遮罩控制按钮
+      document.getElementById('lockMinimizeBtn').addEventListener('click', () => {
+        window.electronAPI.minimizeWindow();
+      });
+      
+      document.getElementById('lockCloseBtn').addEventListener('click', () => {
+        window.electronAPI.closeWindow();
+      });
+    });
+    
+    const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
+    
+    // 自动锁定时间（分钟）
+    const AUTO_LOCK_MINUTES = 2;
+    
+    createApp({
+      setup() {
+        const serverUrl = ref('');
+        const token = ref(localStorage.getItem('user_token') || '');
+        const username = ref(localStorage.getItem('user_username') || '');
+        const password = ref('');
+        const error = ref('');
+        const isOnline = ref(true);
+        const selectedGroup = ref('');
+        const searchKeyword = ref('');
+        const sortField = ref('name');
+        const sortOrder = ref('asc');
+        const copiedId = ref(null);
+        const countdownPercent = ref(100);
+        const lockSecondsRemaining = ref(AUTO_LOCK_MINUTES * 60);
+        let lockCountdownTimer = null;
+        
+        // Mock数据 - 实际应该从服务端获取
+        // 所有验证码使用统一的倒计时，基于当前时间戳计算
+        const totpItems = ref([
+          { id: 1, name: 'GitHub', platform: 'GitHub', code: '123456', countdown: 0, group: '工作', note: '公司账户' },
+          { id: 2, name: 'Google邮箱', platform: 'Google', code: '654321', countdown: 0, group: '个人', note: '主邮箱' },
+          { id: 3, name: 'AWS控制台', platform: 'AWS', code: '987654', countdown: 0, group: '工作', note: '生产环境' },
+          { id: 4, name: 'Azure云', platform: 'Azure', code: '456789', countdown: 0, group: '工作', note: '测试环境' },
+          { id: 5, name: 'LinkedIn', platform: 'LinkedIn', code: '789012', countdown: 0, group: '个人', note: '职业社交' },
+          { id: 6, name: 'Slack团队', platform: 'Slack', code: '345678', countdown: 0, group: '工作', note: '团队协作' },
+          { id: 7, name: 'Discord', platform: 'Discord', code: '234567', countdown: 0, group: '个人', note: '游戏社区' },
+          { id: 8, name: 'Zoom会议', platform: 'Zoom', code: '890123', countdown: 0, group: '工作', note: '视频会议' },
+        ]);
+        
+        // 计算分组列表
+        const groups = computed(() => {
+          const groupSet = new Set(totpItems.value.map(item => item.group).filter(Boolean));
+          return Array.from(groupSet).sort();
+        });
+        
+        // 锁定倒计时显示
+        const lockTimeDisplay = computed(() => {
+          const minutes = Math.floor(lockSecondsRemaining.value / 60);
+          const seconds = lockSecondsRemaining.value % 60;
+          return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        });
+        
+        // 过滤和排序后的列表
+        const filteredItems = computed(() => {
+          let items = [...totpItems.value];
+          
+          // 搜索过滤
+          if (searchKeyword.value) {
+            const keyword = searchKeyword.value.toLowerCase();
+            items = items.filter(item => 
+              item.name.toLowerCase().includes(keyword) ||
+              item.platform.toLowerCase().includes(keyword) ||
+              (item.note && item.note.toLowerCase().includes(keyword))
+            );
+          }
+          
+          // 分组过滤
+          if (selectedGroup.value) {
+            items = items.filter(item => item.group === selectedGroup.value);
+          }
+          
+          // 排序
+          items.sort((a, b) => {
+            const aVal = a[sortField.value] || '';
+            const bVal = b[sortField.value] || '';
+            const compare = aVal.localeCompare(bVal, 'zh-CN');
+            return sortOrder.value === 'asc' ? compare : -compare;
+          });
+          
+          return items;
+        });
+        
+        // 更新进度条
+        function updateProgress() {
+          // 基于当前时间计算倒计时百分比
+          const currentCountdown = calculateCountdown();
+          countdownPercent.value = (currentCountdown / 30) * 100;
+          
+          const progressBar = document.getElementById('countdownProgress');
+          if (progressBar) {
+            progressBar.style.width = `${countdownPercent.value}%`;
+            progressBar.className = `countdown-progress${currentCountdown <= 5 ? ' low' : ''}`;
+          }
+        }
+        
+        // 初始化
+        onMounted(async () => {
+          document.getElementById('loadingScreen').classList.add('hidden');
+          updateUserInfo();
+          
+          try {
+            const result = await window.electronAPI.getServerUrl();
+            if (result) {
+              serverUrl.value = result;
+            }
+          } catch (e) {
+            console.error('获取服务端地址失败:', e);
+          }
+          
+          if (token.value) {
+            startRefreshTimer();
+            setupAutoLock();
+          }
+        });
+        
+        // 更新用户信息显示
+        function updateUserInfo() {
+          const userInfo = document.getElementById('userInfo');
+          const lockSection = document.getElementById('lockSection');
+          
+          if (token.value && username.value) {
+            userInfo.textContent = `当前用户: ${username.value}`;
+            // 登录后显示锁定区域
+            if (lockSection) {
+              lockSection.style.display = 'flex';
+            }
+          } else {
+            userInfo.textContent = '未登录';
+            // 未登录时隐藏锁定区域
+            if (lockSection) {
+              lockSection.style.display = 'none';
+            }
+          }
+        }
+        
+        // 排序
+        function setSort(field) {
+          if (sortField.value === field) {
+            sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+          } else {
+            sortField.value = field;
+            sortOrder.value = 'asc';
+          }
+        }
+        
+        function toggleSort() {
+          if (sortField.value === 'name') {
+            setSort('platform');
+          } else {
+            setSort('name');
+          }
+        }
+        
+        // 登录
+        async function login() {
+          if (!username.value || !password.value) {
+            error.value = '请输入用户名和密码';
+            return;
+          }
+          
+          error.value = '';
+          try {
+            isOnline.value = true;
+            const result = await window.electronAPI.request({
+              method: 'POST',
+              url: '/api/user/login',
+              data: { username: username.value, password: password.value },
+              headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (result.code === 0) {
+              token.value = result.data.token;
+              localStorage.setItem('user_token', result.data.token);
+              localStorage.setItem('user_username', username.value);
+              password.value = '';
+              updateUserInfo();
+              startRefreshTimer();
+              setupAutoLock();
+              showToast('登录成功', 'success');
+            } else {
+              error.value = result.message || '登录失败';
+            }
+          } catch (e) {
+            error.value = '网络连接失败';
+            isOnline.value = false;
+          }
+        }
+        
+        // 刷新验证码计时器 - 所有验证码使用统一倒计时
+        let refreshTimer = null;
+        let lastRefreshTimestamp = 0;
+        
+        // 基于当前时间计算统一的倒计时（30 秒周期）
+        function calculateCountdown() {
+          const now = Math.floor(Date.now() / 1000);
+          return 30 - (now % 30);
+        }
+        
+        // 生成验证码
+        function generateCode() {
+          return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+        
+        function startRefreshTimer() {
+          stopRefreshTimer();
+          
+          // 使用更频繁的更新间隔，确保进度条丝滑
+          refreshTimer = setInterval(() => {
+            const now = Math.floor(Date.now() / 1000);
+            const currentCountdown = calculateCountdown();
+            
+            // 当倒计时进入新周期时（从接近0变为接近30），刷新所有验证码
+            // 使用 now % 30 == 0 来检测新周期开始
+            if (now % 30 === 0) {
+              totpItems.value.forEach(item => {
+                item.code = generateCode();
+              });
+            }
+            
+            updateProgress();
+          }, 50); // 50ms 更新一次，更丝滑
+        }
+        
+        function stopRefreshTimer() {
+          if (refreshTimer) {
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+          }
+        }
+        
+        // 自动锁定 - 只有复制和编辑操作才重置倒计时
+        let lockTimer = null;
+        
+        function setupAutoLock() {
+          resetLockTimer();
+          startLockCountdownTimer();
+          
+          // 添加按钮点击事件监听
+          const lockBtn = document.getElementById('lockBtn');
+          const logoutBtn = document.getElementById('logoutBtn');
+          
+          if (lockBtn) {
+            lockBtn.addEventListener('click', lockScreen);
+          }
+          if (logoutBtn) {
+            logoutBtn.addEventListener('click', logout);
+          }
+        }
+        
+        // 公共方法：执行操作时重置锁定倒计时
+        function resetLockOnAction() {
+          if (lockTimer) {
+            clearTimeout(lockTimer);
+          }
+          lockTimer = setTimeout(() => {
+            lockScreen();
+          }, AUTO_LOCK_MINUTES * 60 * 1000);
+          
+          // 重置锁定倒计时显示
+          lockSecondsRemaining.value = AUTO_LOCK_MINUTES * 60;
+        }
+        
+        function resetLockTimer() {
+          resetLockOnAction();
+        }
+        
+        // 锁定倒计时计时器
+        function startLockCountdownTimer() {
+          stopLockCountdownTimer();
+          lockCountdownTimer = setInterval(() => {
+            if (lockSecondsRemaining.value > 0) {
+              lockSecondsRemaining.value--;
+              // 更新标题栏中的锁定倒计时显示
+              updateLockCountdownDisplay();
+            }
+          }, 1000);
+        }
+        
+        function updateLockCountdownDisplay() {
+          const lockTimeDisplay = document.getElementById('lockTimeDisplay');
+          const lockCountdown = document.getElementById('lockCountdown');
+          
+          if (lockTimeDisplay) {
+            const minutes = Math.floor(lockSecondsRemaining.value / 60);
+            const seconds = lockSecondsRemaining.value % 60;
+            lockTimeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+          }
+          
+          if (lockCountdown) {
+            if (lockSecondsRemaining.value <= 60) {
+              lockCountdown.classList.add('low');
+            } else {
+              lockCountdown.classList.remove('low');
+            }
+          }
+        }
+        
+        function stopLockCountdownTimer() {
+          if (lockCountdownTimer) {
+            clearInterval(lockCountdownTimer);
+            lockCountdownTimer = null;
+          }
+        }
+        
+        function lockScreen() {
+          document.getElementById('lockOverlay').classList.remove('hidden');
+          stopRefreshTimer();
+          stopLockCountdownTimer();
+        }
+        
+        // 解锁
+        document.getElementById('unlockBtn').addEventListener('click', async () => {
+          const lockPassword = document.getElementById('lockPassword').value;
+          if (!lockPassword) return;
+          
+          try {
+            const result = await window.electronAPI.request({
+              method: 'POST',
+              url: '/api/user/login',
+              data: { username: username.value, password: lockPassword },
+              headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (result.code === 0) {
+              document.getElementById('lockOverlay').classList.add('hidden');
+              document.getElementById('lockPassword').value = '';
+              startRefreshTimer();
+              lockSecondsRemaining.value = AUTO_LOCK_MINUTES * 60;
+              setupAutoLock();
+              showToast('解锁成功', 'success');
+            } else {
+              showToast('密码错误', 'error');
+            }
+          } catch (e) {
+            showToast('网络连接失败', 'error');
+          }
+        });
+        
+        // 复制验证码
+        async function copyCode(item) {
+          if (!item.code) return;
+          try {
+            await window.electronAPI.copyToClipboard(item.code);
+            copiedId.value = item.id;
+            showToast(`已复制: ${item.code}`, 'success');
+            setTimeout(() => {
+              copiedId.value = null;
+            }, 1500);
+            // 复制操作重置锁定倒计时
+            resetLockOnAction();
+          } catch (e) {
+            showToast('复制失败', 'error');
+          }
+        }
+        
+        // 编辑弹窗
+        let editingItem = null;
+        
+        function openEditModal(item) {
+          editingItem = item;
+          document.getElementById('editName').value = item.name;
+          document.getElementById('editPlatform').value = item.platform;
+          document.getElementById('editGroup').value = item.group || '';
+          document.getElementById('editNote').value = item.note || '';
+          document.getElementById('editModal').classList.remove('hidden');
+          // 编辑操作重置锁定倒计时
+          resetLockOnAction();
+        }
+        
+        document.getElementById('editCancel').addEventListener('click', () => {
+          document.getElementById('editModal').classList.add('hidden');
+          editingItem = null;
+        });
+        
+        document.getElementById('editConfirm').addEventListener('click', () => {
+          if (editingItem) {
+            // 只保存分组和备注（名称和平台从服务端获取，不允许修改）
+            editingItem.group = document.getElementById('editGroup').value;
+            editingItem.note = document.getElementById('editNote').value;
+            showToast('保存成功', 'success');
+          }
+          document.getElementById('editModal').classList.add('hidden');
+          editingItem = null;
+        });
+        
+        // 退出
+        function logout() {
+          token.value = '';
+          username.value = '';
+          password.value = '';
+          localStorage.removeItem('user_token');
+          localStorage.removeItem('user_username');
+          stopRefreshTimer();
+          if (lockTimer) {
+            clearTimeout(lockTimer);
+            lockTimer = null;
+          }
+          updateUserInfo();
+          showToast('已退出登录', 'info');
+        }
+        
+        onUnmounted(() => {
+          stopRefreshTimer();
+          stopLockCountdownTimer();
+          if (lockTimer) {
+            clearTimeout(lockTimer);
+          }
+        });
+        
+        return {
+          serverUrl,
+          token,
+          username,
+          password,
+          error,
+          isOnline,
+          selectedGroup,
+          searchKeyword,
+          sortField,
+          sortOrder,
+          copiedId,
+          totpItems,
+          groups,
+          filteredItems,
+          lockSecondsRemaining,
+          lockTimeDisplay,
+          login,
+          logout,
+          copyCode,
+          setSort,
+          toggleSort,
+          openEditModal,
+          lockScreen,
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
