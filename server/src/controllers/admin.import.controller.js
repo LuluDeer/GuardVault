@@ -95,6 +95,12 @@ export async function confirmImport(req, reply) {
     return fail(reply, ErrorCode.PARAM_ERROR, '未选择任何服务');
   }
 
+  const invalidItems = selectedItems.filter(item => !validateOtpItem(item));
+  if (invalidItems.length > 0) {
+    const invalidNames = invalidItems.map(item => item.name).join(', ');
+    return fail(reply, ErrorCode.PARAM_ERROR, `以下服务密钥格式无效：${invalidNames}`);
+  }
+
   const serviceNames = selectedItems.map(item => item.name);
   const existingServices = await prisma.serviceAccount.findMany({
     where: {

@@ -1,7 +1,12 @@
 <template>
   <el-container style="height:100vh">
     <el-aside :width="sidebarWidth" class="sidebar">
-      <div class="logo">GuardVault</div>
+      <div class="logo">
+        <div class="logo-icon">
+          <el-icon :size="24"><Key /></el-icon>
+        </div>
+        <span class="logo-text">GuardVault</span>
+      </div>
       <el-menu
         :default-active="activeMenu"
         :background-color="menuBg"
@@ -126,28 +131,88 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.sidebar { transition: background-color 0.3s; }
+.sidebar {
+  transition: background-color 0.3s;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
+}
+
 .logo {
   height: 64px;
-  line-height: 64px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 16px;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #409eff, #667eea);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.logo-text {
   color: #fff;
   font-size: 18px;
   font-weight: 700;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  letter-spacing: 0.5px;
 }
+
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--topbar-border, #f0f0f0);
+  border-bottom: 1px solid var(--topbar-border, #ebf0f5);
   background: var(--topbar-bg, #fff);
   transition: background-color 0.3s, border-color 0.3s;
+  padding: 0 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
-.topbar-actions { display: flex; align-items: center; gap: 12px; }
-.page-title { font-size: 16px; font-weight: 600; color: var(--topbar-text, #303133); }
-.user-info { cursor: pointer; color: var(--topbar-text, #606266); display: inline-flex; align-items: center; gap: 4px; }
-.main-area { background: var(--main-bg, #f5f7fa); transition: background-color 0.3s; }
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.page-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--topbar-text, #1a1a1a);
+  letter-spacing: -0.3px;
+}
+
+.user-info {
+  cursor: pointer;
+  color: var(--topbar-text, #606266);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.user-info:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+html.dark .user-info:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.main-area {
+  background: var(--main-bg, #f5f7fa);
+  transition: background-color 0.3s;
+  padding: 24px;
+}
 </style>
 
 <style>

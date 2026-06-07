@@ -5,6 +5,13 @@
       <p class="description">{{ t('import.description') }}</p>
     </div>
 
+    <div class="step-indicator">
+      <div v-for="s in steps" :key="s.id" class="step-item" :class="{ active: step >= s.id, completed: step > s.id }">
+        <span class="step-number">{{ s.id }}</span>
+        <span class="step-label">{{ s.label }}</span>
+      </div>
+    </div>
+
     <div v-if="step === 1" class="import-step">
       <div class="step-card">
         <div class="step-icon">
@@ -190,7 +197,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Upload, Link, Picture, Document, UploadFilled, List, Check, Close, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { parseMigration as parseMigrationApi, confirmImport as apiConfirmImport } from '@/api/import'
 import { getAllDepts } from '@/api/dept'
@@ -202,6 +209,11 @@ import jsQR from 'jsqr'
 const { t } = useI18n()
 
 const step = ref(1)
+const steps = computed(() => [
+  { id: 1, label: t('import.step1') },
+  { id: 2, label: t('import.step2') },
+  { id: 3, label: t('import.step3') },
+])
 const importMethod = ref('url')
 const migrationUrl = ref('')
 const parsing = ref(false)
@@ -212,6 +224,7 @@ const departments = ref([])
 const categories = ref([])
 const importResult = ref({ successCount: 0, failCount: 0, results: [] })
 const showSecretDialog = ref(false)
+const deptsLoaded = ref(false)
 const visibleSecret = ref('')
 const fileInput = ref(null)
 const imageInput = ref(null)
@@ -254,8 +267,13 @@ async function loadDepartments() {
     if (catRes.data) {
       categories.value = catRes.data
     }
+    deptsLoaded.value = true
+    if (departments.value.length === 0) {
+      ElMessage.warning(t('import.noDept'))
+    }
   } catch (error) {
-    ElMessage.error(t('common.failed'))
+    ElMessage.error(t('import.loadDeptFailed'))
+    deptsLoaded.value = true
   }
 }
 
@@ -465,7 +483,18 @@ function resetImport() {
   importItems.value = []
   importResult.value = { successCount: 0, failCount: 0, results: [] }
   previewImage.value = ''
+  hasFile.value = false
 }
+
+watch(importMethod, () => {
+  hasFile.value = false
+  if (importMethod.value !== 'image') {
+    previewImage.value = ''
+    if (imageInput.value) {
+      imageInput.value.value = ''
+    }
+  }
+})
 
 onMounted(() => {
   loadDepartments()
@@ -476,16 +505,87 @@ onMounted(() => {
 .import-page { padding: 24px; max-width: 1000px; margin: 0 auto; }
 
 .import-header { margin-bottom: 24px; }
-.import-header h2 { font-size: 24px; margin: 0 0 8px 0; }
+.import-header h2 { font-size: 24px; margin: 0 0 8px 0; font-weight: 600; }
 .import-header .description { color: #909399; margin: 0; }
 
-.import-step { animation: fadeIn 0.3s ease; }
+.step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 32px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.step-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: calc(100% + 20px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 60px;
+  height: 2px;
+  background: #e4e7ed;
+}
+
+.step-item.completed:not(:last-child)::after {
+  background: linear-gradient(90deg, #409eff, #667eea);
+}
+
+.step-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f5f7fa;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.step-item.active .step-number {
+  background: linear-gradient(135deg, #409eff, #667eea);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+}
+
+.step-item.completed .step-number {
+  background: #67c23a;
+  color: #fff;
+}
+
+.step-label {
+  font-size: 13px;
+  color: #909399;
+  transition: color 0.3s ease;
+}
+
+.step-item.active .step-label {
+  color: #409eff;
+  font-weight: 500;
+}
+
+.step-item.completed .step-label {
+  color: #67c23a;
+}
+
+.import-step { animation: fadeIn 0.4s ease; }
 
 .step-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 32px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  background: var(--bg-card, #fff);
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+  border: 1px solid var(--border-color, #ebf0f5);
 }
 
 .step-icon {
@@ -599,11 +699,11 @@ onMounted(() => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.dark .step-card { background: #1e293b; }
-.dark .upload-area { border-color: #334155; }
-.dark .upload-area:hover { border-color: #409eff; background: rgba(64, 158, 255, 0.1); }
-.dark .tip { background: #334155; }
-.dark .stat-item.success { background: rgba(103, 194, 58, 0.1); }
-.dark .stat-item.error { background: rgba(245, 108, 108, 0.1); }
-.dark .secret-value { background: #334155; }
+html.dark .step-card { background: #1e293b; }
+html.dark .upload-area { border-color: #334155; }
+html.dark .upload-area:hover { border-color: #409eff; background: rgba(64, 158, 255, 0.1); }
+html.dark .tip { background: #334155; }
+html.dark .stat-item.success { background: rgba(103, 194, 58, 0.1); }
+html.dark .stat-item.error { background: rgba(245, 108, 108, 0.1); }
+html.dark .secret-value { background: #334155; }
 </style>

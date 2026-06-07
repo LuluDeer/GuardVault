@@ -1,21 +1,41 @@
 <template>
   <div>
-    <el-row :gutter="16" style="margin-bottom:16px">
-      <el-col :span="6"><div class="stat-card stat-1">
-        <div class="stat-label">{{ t('menu.services') }}</div>
-        <div class="stat-value">{{ summary.totalAccounts || 0 }}</div>
+    <el-row :gutter="16" style="margin-bottom:20px">
+      <el-col :span="6"><div class="stat-card stat-card--primary hover-lift">
+        <div class="stat-icon">
+          <el-icon :size="24"><Grid /></el-icon>
+        </div>
+        <div class="stat-content">
+          <div class="stat-label">{{ t('menu.services') }}</div>
+          <div class="stat-value">{{ summary.totalAccounts || 0 }}</div>
+        </div>
       </div></el-col>
-      <el-col :span="6"><div class="stat-card stat-2">
-        <div class="stat-label">{{ t('menu.users') }}</div>
-        <div class="stat-value">{{ summary.totalUsers || 0 }}</div>
+      <el-col :span="6"><div class="stat-card stat-card--success hover-lift">
+        <div class="stat-icon">
+          <el-icon :size="24"><User /></el-icon>
+        </div>
+        <div class="stat-content">
+          <div class="stat-label">{{ t('menu.users') }}</div>
+          <div class="stat-value">{{ summary.totalUsers || 0 }}</div>
+        </div>
       </div></el-col>
-      <el-col :span="6"><div class="stat-card stat-3">
-        <div class="stat-label">{{ t('menu.departments') }}</div>
-        <div class="stat-value">{{ summary.totalDepartments || 0 }}</div>
+      <el-col :span="6"><div class="stat-card stat-card--warning hover-lift">
+        <div class="stat-icon">
+          <el-icon :size="24"><OfficeBuilding /></el-icon>
+        </div>
+        <div class="stat-content">
+          <div class="stat-label">{{ t('menu.departments') }}</div>
+          <div class="stat-value">{{ summary.totalDepartments || 0 }}</div>
+        </div>
       </div></el-col>
-      <el-col :span="6"><div class="stat-card stat-4">
-        <div class="stat-label">Grants</div>
-        <div class="stat-value">{{ summary.totalGrants || 0 }}</div>
+      <el-col :span="6"><div class="stat-card stat-card--danger hover-lift">
+        <div class="stat-icon">
+          <el-icon :size="24"><Key /></el-icon>
+        </div>
+        <div class="stat-content">
+          <div class="stat-label">{{ t('menu.grants') }}</div>
+          <div class="stat-value">{{ summary.totalGrants || 0 }}</div>
+        </div>
       </div></el-col>
     </el-row>
 
@@ -93,6 +113,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import * as echarts from 'echarts'
+import { Grid, User, OfficeBuilding, Key } from '@element-plus/icons-vue'
 import { getSummary, getServiceViewStats, getUserViewStats, getActionStats, getDailyStats } from '@/api/audit'
 import { useI18n } from '@/i18n'
 
@@ -222,22 +243,57 @@ onUnmounted(() => {
 <style scoped>
 .stat-card {
   padding: 24px;
-  border-radius: 8px;
+  border-radius: 16px;
   color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
 }
-.stat-1 { background: linear-gradient(135deg, #667eea, #764ba2); }
-.stat-2 { background: linear-gradient(135deg, #f093fb, #f5576c); }
-.stat-3 { background: linear-gradient(135deg, #4facfe, #00f2fe); }
-.stat-4 { background: linear-gradient(135deg, #43e97b, #38f9d7); }
+
+.stat-card--primary {
+  background: linear-gradient(135deg, #409eff 0%, #667eea 100%);
+}
+
+.stat-card--success {
+  background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%);
+}
+
+.stat-card--warning {
+  background: linear-gradient(135deg, #e6a23c 0%, #f0c78a 100%);
+}
+
+.stat-card--danger {
+  background: linear-gradient(135deg, #f56c6c 0%, #f89898 100%);
+}
+
+.stat-icon {
+  width: 52px;
+  height: 52px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-content {
+  flex: 1;
+}
 
 .stat-label {
   font-size: 14px;
-  opacity: 0.85;
-  margin-bottom: 8px;
+  opacity: 0.9;
+  margin-bottom: 6px;
+  font-weight: 500;
 }
+
 .stat-value {
   font-size: 32px;
   font-weight: 700;
+  letter-spacing: -1px;
 }
 
 .card-header {
@@ -256,6 +312,11 @@ onUnmounted(() => {
   border-radius: 11px;
   overflow: hidden;
 }
+
+html.dark .bar-wrap {
+  background: #334155;
+}
+
 .bar-fill {
   position: absolute;
   left: 0;
@@ -263,13 +324,18 @@ onUnmounted(() => {
   height: 100%;
   background: linear-gradient(90deg, #409eff, #67c23a);
   border-radius: 11px;
-  transition: width 0.3s;
+  transition: width 0.5s ease;
 }
+
 .bar-text {
   position: relative;
   z-index: 1;
   padding: 0 10px;
   font-size: 12px;
   color: #606266;
+}
+
+html.dark .bar-text {
+  color: #cbd5e1;
 }
 </style>

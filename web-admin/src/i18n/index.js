@@ -86,6 +86,8 @@ const messages = {
       welcome: '欢迎使用 TOTP 集中管理平台',
       invalidTotp: '动态口令无效',
       loginFailed: '登录失败',
+      tagline: '企业级密钥安全管理平台',
+      copyright: '© 2026 GuardVault. All rights reserved.',
     },
     services: {
       title: '服务管理',
@@ -179,6 +181,9 @@ const messages = {
     import: {
       title: '谷歌OTP导入',
       description: '从谷歌验证码导出的迁移二维码中提取服务配置并导入',
+      step1: '选择方式',
+      step2: '选择服务',
+      step3: '导入完成',
       selectMethod: '选择导入方式',
       selectMethodDesc: '请选择以下方式之一导入谷歌OTP配置：',
       pasteUrl: '粘贴迁移URL',
@@ -225,6 +230,8 @@ const messages = {
       qrDecodeFailed: '二维码解析失败，请确保上传清晰的二维码图片',
       serviceExists: '已存在同名服务',
       selectAtLeastOne: '请至少选择一项',
+      noDept: '未找到可用部门，请先创建部门',
+      loadDeptFailed: '加载部门列表失败',
     },
   },
   'en-US': {
@@ -285,6 +292,8 @@ const messages = {
       welcome: 'Welcome to TOTP Centralized Platform',
       invalidTotp: 'Invalid 2FA code',
       loginFailed: 'Login failed',
+      tagline: 'Enterprise Key Security Management Platform',
+      copyright: '© 2026 GuardVault. All rights reserved.',
     },
     services: {
       title: 'Services',
@@ -378,6 +387,9 @@ const messages = {
     import: {
       title: 'Google OTP Import',
       description: 'Extract service configurations from Google Authenticator migration QR code and import',
+      step1: 'Select Method',
+      step2: 'Select Services',
+      step3: 'Complete',
       selectMethod: 'Select Import Method',
       selectMethodDesc: 'Please select one of the following methods to import Google OTP configurations:',
       pasteUrl: 'Paste Migration URL',
@@ -424,6 +436,8 @@ const messages = {
       qrDecodeFailed: 'QR code decode failed, please ensure the uploaded image contains a clear QR code',
       serviceExists: 'Service already exists',
       selectAtLeastOne: 'Please select at least one item',
+      noDept: 'No available departments found, please create a department first',
+      loadDeptFailed: 'Failed to load department list',
     },
   },
 }
