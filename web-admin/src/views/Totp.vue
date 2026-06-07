@@ -42,6 +42,7 @@
             <el-button v-if="row.totpEnabled" size="small" type="danger" @click="handleDisable(row)">禁用2FA</el-button>
             <el-button v-if="row.totpEnabled" size="small" type="warning" @click="handleReset2FA(row)">重置2FA</el-button>
             <el-button v-if="row.totpEnabled" size="small" type="info" @click="openCodeDialog(row)">查看动态码</el-button>
+            <el-button v-if="row.totpEnabled" size="small" type="success" @click="openSecretDialog(row)">查看密钥</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -68,6 +69,25 @@
         <el-button type="primary" @click="fetchCode">刷新</el-button>
       </template>
     </el-dialog>
+
+    <!-- TOTP 密钥查看 + 二维码 -->
+    <el-dialog v-model="secretVisible" :title="`TOTP 密钥 - ${secretInfo?.username}`" width="420px">
+      <div v-loading="secretLoading" class="secret-box">
+        <p class="hint">用户可使用 Google Authenticator / 微软 Authenticator 扫描下方二维码绑定</p>
+        <div class="qr-wrap">
+          <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR Code" class="qr-img" />
+          <div v-else class="qr-loading">生成二维码中...</div>
+        </div>
+        <div class="secret-text">
+          <label>密钥（Base32）</label>
+          <el-input v-model="secretInfo.secret" readonly>
+            <template #append>
+              <el-button @click="copySecret">复制</el-button>
+            </template>
+          </el-input>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -76,7 +96,8 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUserList } from '@/api/user'
-import { enableTotp, disableTotp, resetTotp, batchResetTotp, getTotpCode } from '@/api/totp'
+import { enableTotp, disableTotp, resetTotp, batchResetTotp, getTotpCode, getUserSecret } from '@/api/totp'
+import QRCode from 'qrcode'
 
 const loading = ref(false)
 const list = ref([])
@@ -185,4 +206,11 @@ onUnmounted(stopTimer)
   margin-bottom: 16px;
 }
 .countdown-tip { margin-top: 8px; font-size: 13px; color: #909399; }
+.secret-box { text-align: center; }
+.hint { font-size: 13px; color: #909399; margin-bottom: 12px; }
+.qr-wrap { display: flex; justify-content: center; margin-bottom: 16px; }
+.qr-img { width: 220px; height: 220px; border: 1px solid #eee; border-radius: 8px; }
+.qr-loading { width: 220px; height: 220px; display: flex; align-items: center; justify-content: center; color: #909399; background: #f5f7fa; border-radius: 8px; }
+.secret-text { text-align: left; }
+.secret-text label { display: block; font-size: 13px; color: #606266; margin-bottom: 6px; }
 </style>

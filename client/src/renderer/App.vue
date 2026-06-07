@@ -1,49 +1,61 @@
 <template>
-  <div id="app">
-    <transition name="fade" mode="out-in">
-      <component :is="currentView" />
-    </transition>
+  <div id="app" :class="{ 'dark-mode': darkMode }">
+    <router-view />
   </div>
 </template>
 
-<script setup>import { computed, onMounted } from 'vue';
-import { useAuthStore } from './stores/auth';
-import ConfigView from './views/Config.vue';
-import LoginView from './views/Login.vue';
-import MainView from './views/Main.vue';
-import PasswordView from './views/Password.vue';
-const auth = useAuthStore();
-onMounted(() => {
-  auth.initServerUrl();
-});
-const currentView = computed(() => {
- if (!auth.serverUrl)
- return ConfigView;
- if (!auth.token)
- return LoginView;
- if (auth.showPassword)
- return PasswordView;
- return MainView;
+<script setup>
+import { ref, onMounted } from 'vue';
+import api from './api/index.js';
+
+const darkMode = ref(true);
+
+onMounted(async () => {
+  try {
+    const config = await api.getConfig();
+    darkMode.value = config?.darkMode ?? true;
+  } catch {}
 });
 </script>
 
 <style>
-body {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 #app {
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
+#app.dark-mode {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: #fff;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.3);
 }
 </style>

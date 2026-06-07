@@ -1,106 +1,181 @@
-const { ipcMain, clipboard } = require('electron');
+const { app, ipcMain, clipboard, Notification } = require('electron');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const tokenStore = require('./token-store');
+const { getAutoStart, setAutoStart } = require('./autostart');
+const { getConfig } = require('./ipc-config');
 
-const configPath = path.join(process.env.APPDATA, 'totp-client', 'config.json');
+function getConfigPath() {
+  return path.join(app.getPath('userData'), 'config.json');
+}
 
 function getConfig() {
   try {
-    const data = fs.readFileSync(configPath, 'utf8');
-    return JSON.parse(data);
+    return JSON.parse(fs.readFileSync(getConfigPath(), 'utf8'));
   } catch {
-    return { serverUrl: 'http://127.0.0.1:3000' };
+    return { serverUrl: 'http://127.0.0.1:3000', darkMode: false, hotkey: 'Ctrl+Alt+T' };
   }
 }
 
 function saveConfig(config) {
   try {
-    const dir = path.dirname(configPath);
+    const p = getConfigPath();
+    const dir = path.dirname(p);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    fs.writeFileSync(p, JSON.stringify(config, null, 2));
     return true;
   } catch {
     return false;
   }
 }
 
-let axiosInstance = null;
+const httpClient = axios.create({
+  baseURL: getConfig().serverUrl,
+  timeout: 10000,
+  validateStatus: () => true,
+});
 
-function createAxiosInstance(serverUrl) {
-  axiosInstance = axios.create({
-    baseURL: serverUrl || getConfig().serverUrl,
-    timeout: 10000
-  });
-  
-  return axiosInstance;
+httpClient.interceptors.request.use((config) => {
+  const token = tokenStore.readToken();
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+httpClient.interceptors.response.use((resp) => {
+  if (resp.data && resp.data.code === 1005) {
+    tokenStore.clearToken();
+    tokenStore.clearUser();
+    const { BrowserWindow } = require('electron');
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('auth:expired');
+    });
+  }
+  return resp;
+});
+
+async function doRequest({ method, url, data, params }) {
+  const resp = await httpClient.request({ method, url, data, params });
+  return resp.data;
 }
 
-async function handleHttpRequest(event, config) {
-  try {
-    if (!axiosInstance) createAxiosInstance();
-    
-    // 从请求配置中获取 token（由渲染进程传递）
-    const token = config.token;
-    if (token) {
-      config.headers = config.headers || {};
-      config.headers['Authorization'] = `Bearer ${token}`;
+let heartbeatTimer = null;
+function startHeartbeat(getWindow) {
+  if (heartbeatTimer) return;
+  heartbeatTimer = setInterval(async () => {
+    try {
+      const resp = await axios.get(getConfig().serverUrl + '/health', { timeout: 3000 });
+      if (resp.data?.status === 'ok') {
+        getWindow()?.webContents.send('net:online');
+      } else {
+        getWindow()?.webContents.send('net:offline');
+      }
+    } catch {
+      getWindow()?.webContents.send('net:offline');
     }
-    
-    // 删除 token 字段，避免传递给 axios
-    delete config.token;
-    
-    const response = await axiosInstance(config);
-    return response.data;
-  } catch (error) {
-    return {
-      code: error.response?.status || -1,
-      message: error.response?.data?.message || error.message || '网络错误'
-    };
+  }, 15000);
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
   }
 }
 
-function initIpc(mainWindow) {
-  ipcMain.handle('http-request', handleHttpRequest);
-  
-  ipcMain.handle('get-server-url', () => {
-    return getConfig().serverUrl;
-  });
-  
-  ipcMain.handle('set-server-url', (event, url) => {
-    const config = getConfig();
-    config.serverUrl = url;
-    if (saveConfig(config)) {
-      axiosInstance = null;
-      return { success: true };
-    }
-    return { success: false };
-  });
-  
-  ipcMain.handle('copy-clipboard', (event, text) => {
-    clipboard.writeText(text);
-    return { success: true };
-  });
-  
-  ipcMain.handle('set-autostart', (event, enable) => {
-    const { setAutoStart } = require('./autostart');
-    return setAutoStart(enable);
-  });
-  
-  ipcMain.handle('get-autostart', () => {
-    const { getAutoStart } = require('./autostart');
-    return getAutoStart();
-  });
-  
-  ipcMain.handle('minimize-window', () => {
-    mainWindow.minimize();
-    return { success: true };
-  });
-  
-  ipcMain.handle('close-window', () => {
-    mainWindow.hide();
-    return { success: true };
-  });
+let clipboardClearTimer = null;
+function clearClipboardDelayed(delay = 30000) {
+  if (clipboardClearTimer) clearTimeout(clipboardClearTimer);
+  clipboardClearTimer = setTimeout(() => {
+    clipboard.writeText('');
+  }, delay);
 }
 
-module.exports = { initIpc, getConfig, saveConfig };
+function registerIpc(getWindow) {
+  ipcMain.handle('config:get', () => getConfig());
+  ipcMain.handle('config:set', (_, config) => saveConfig(config));
+
+  ipcMain.handle('auth:login', async (_, { username, password }) => {
+    const result = await doRequest({
+      method: 'POST', url: '/api/user/login',
+      data: { username, password },
+    });
+    if (result.code === 0 && result.data?.token) {
+      tokenStore.saveToken(result.data.token);
+      tokenStore.saveUser(result.data.user);
+    }
+    return result;
+  });
+
+  ipcMain.handle('auth:logout', async () => {
+    const result = await doRequest({ method: 'POST', url: '/api/user/logout' });
+    tokenStore.clearToken();
+    tokenStore.clearUser();
+    return result;
+  });
+
+  ipcMain.handle('auth:user', () => tokenStore.readUser());
+  ipcMain.handle('auth:hasToken', () => !!tokenStore.readToken());
+
+  ipcMain.handle('request', async (_, { method, url, data, params }) => {
+    return doRequest({ method, url, data, params });
+  });
+
+  ipcMain.handle('totp:code', async () => doRequest({ method: 'GET', url: '/api/user/totp/code' }));
+
+  ipcMain.handle('user:changePassword', async (_, { oldPassword, newPassword }) => {
+    const result = await doRequest({
+      method: 'PUT', url: '/api/user/password',
+      data: { oldPassword, newPassword },
+    });
+    if (result.code === 0) {
+      tokenStore.clearToken();
+      tokenStore.clearUser();
+    }
+    return result;
+  });
+
+  ipcMain.handle('autostart:get', () => getAutoStart());
+  ipcMain.handle('autostart:set', (_, enable) => setAutoStart(!!enable));
+
+  ipcMain.handle('service:list', async () => doRequest({ method: 'GET', url: '/api/user/service/list' }));
+  ipcMain.handle('service:detail', async (_, id) => doRequest({ method: 'GET', url: `/api/user/service/${id}` }));
+  ipcMain.handle('service:code', async (_, id) => doRequest({ method: 'GET', url: `/api/user/service/${id}/code` }));
+  ipcMain.handle('service:copy-report', async (_, accountId) => doRequest({
+    method: 'POST', url: '/api/user/service/copy-report',
+    data: { accountId },
+  }));
+
+  ipcMain.on('window:minimize', () => getWindow()?.minimize());
+  ipcMain.on('window:close', () => getWindow()?.hide());
+  ipcMain.on('window:toggle-maximize', () => {
+    if (!getWindow()) return;
+    if (getWindow().isMaximized()) getWindow().unmaximize();
+    else getWindow().maximize();
+  });
+
+  ipcMain.on('clipboard:write', (_, text) => {
+    clipboard.writeText(String(text || ''));
+    clearClipboardDelayed(30000);
+  });
+
+  ipcMain.on('clipboard:clear', () => clipboard.writeText(''));
+
+  ipcMain.on('notify', (_, { title, body }) => {
+    try {
+      new Notification({ title, body, silent: false }).show();
+    } catch {}
+  });
+
+  startHeartbeat(getWindow);
+}
+
+function initIpc(getWindow) {
+  registerIpc(getWindow);
+  return { stopHeartbeat };
+}
+
+module.exports = { initIpc };

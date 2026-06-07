@@ -3,110 +3,166 @@
     <el-card class="search-card">
       <el-row :gutter="16" align="middle">
         <el-col :span="6">
-          <el-input v-model="query.keyword" placeholder="搜索用户名" :prefix-icon="Search" clearable @keyup.enter="handleSearch" />
+          <el-input v-model="query.keyword" :placeholder="t('users.searchPlaceholder')" :prefix-icon="Search" clearable @keyup.enter="handleSearch" />
         </el-col>
         <el-col :span="5">
-          <el-select v-model="query.status" placeholder="状态筛选" clearable style="width:100%">
-            <el-option label="正常" value="1" />
-            <el-option label="禁用" value="0" />
+          <el-select v-model="query.status" :placeholder="t('users.statusFilter')" clearable style="width:100%">
+            <el-option :label="t('users.active')" value="1" />
+            <el-option :label="t('users.inactive')" value="0" />
           </el-select>
         </el-col>
         <el-col :span="4">
-          <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" :icon="Search" @click="handleSearch">{{ t('common.search') }}</el-button>
+          <el-button @click="handleReset">{{ t('common.reset') }}</el-button>
         </el-col>
         <el-col :span="9" style="text-align:right">
-          <el-button type="primary" :icon="Plus" @click="openCreate">新增用户</el-button>
+          <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('users.addUser') }}</el-button>
         </el-col>
       </el-row>
     </el-card>
 
     <el-card style="margin-top:16px">
-      <el-table :data="list" v-loading="loading" border stripe style="width:100%">
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="username" label="用户名" min-width="140" />
-        <el-table-column label="状态" width="90">
+      <!-- 数据量 ≤ 50 用普通 el-table 体验更佳；> 50 用虚拟滚动 el-table-v2 -->
+      <el-table
+        v-if="total <= 50"
+        :data="list"
+        v-loading="loading"
+        border
+        stripe
+        style="width:100%"
+      >
+        <el-table-column prop="id" :label="t('common.id')" width="80" />
+        <el-table-column prop="username" :label="t('users.username')" min-width="140" />
+        <el-table-column :label="t('common.status')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
-              {{ row.status === 1 ? '正常' : '禁用' }}
+              {{ row.status === 1 ? t('users.active') : t('users.inactive') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="TOTP" width="100">
+        <el-table-column :label="t('users.totpEnabled')" width="100">
           <template #default="{ row }">
             <el-tag :type="row.totpEnabled ? 'primary' : 'info'" size="small">
-              {{ row.totpEnabled ? '已开启' : '未开启' }}
+              {{ row.totpEnabled ? t('users.enabled') : t('users.disabled') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" min-width="160">
+        <el-table-column prop="createdAt" :label="t('common.createdAt')" min-width="160">
           <template #default="{ row }">{{ fmt(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="270" fixed="right">
+        <el-table-column :label="t('common.actions')" width="270" fixed="right">
           <template #default="{ row }">
             <el-button size="small" :type="row.status===1?'warning':'success'" @click="toggleStatus(row)">
-              {{ row.status === 1 ? '禁用' : '启用' }}
+              {{ row.status === 1 ? t('common.disabled') : t('common.enabled') }}
             </el-button>
-            <el-button size="small" type="info" @click="openResetPwd(row)">重置密码</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button size="small" type="info" @click="openResetPwd(row)">{{ t('users.resetPassword') }}</el-button>
+            <el-button size="small" type="danger" @click="handleDelete(row)">{{ t('common.delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 虚拟滚动版本（>50 行时启用，DOM 节点恒定 ~30） -->
+      <el-auto-resizer v-else>
+        <template #default="{ height, width }">
+          <el-table-v2
+            :columns="v2Columns"
+            :data="list"
+            :width="width"
+            :height="height"
+            :row-height="56"
+            :header-height="48"
+            fixed
+          />
+        </template>
+      </el-auto-resizer>
+
       <div class="pager">
         <el-pagination
           v-model:current-page="query.page"
           v-model:page-size="query.pageSize"
           :total="total"
-          :page-sizes="[10,20,50]"
+          :page-sizes="[20, 50, 100, 200]"
           layout="total, sizes, prev, pager, next, jumper"
           @change="fetchList"
         />
       </div>
     </el-card>
 
-    <el-dialog v-model="createVisible" title="新增用户" width="420px" :close-on-click-modal="false">
+    <el-dialog v-model="createVisible" :title="t('users.addUser')" width="420px" :close-on-click-modal="false">
       <el-form ref="createRef" :model="createForm" :rules="createRules" label-width="70px">
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="createForm.username" placeholder="请输入用户名" />
+        <el-form-item :label="t('users.username')" prop="username">
+          <el-input v-model="createForm.username" :placeholder="t('users.username')" />
         </el-form-item>
-        <el-form-item label="密码" prop="password">
-          <el-input v-model="createForm.password" type="password" show-password placeholder="请输入密码" />
+        <el-form-item :label="t('login.password')" prop="password">
+          <el-input v-model="createForm.password" type="password" show-password :placeholder="t('login.password')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="createVisible=false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleCreate">确定</el-button>
+        <el-button @click="createVisible=false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleCreate">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="resetPwdVisible" title="重置密码" width="420px" :close-on-click-modal="false">
+    <el-dialog v-model="resetPwdVisible" :title="t('users.resetPassword')" width="420px" :close-on-click-modal="false">
       <el-form ref="resetPwdRef" :model="resetPwdForm" :rules="resetPwdRules" label-width="70px">
-        <el-form-item label="用户名">
+        <el-form-item :label="t('users.username')">
           <el-input :value="currentRow?.username" disabled />
         </el-form-item>
-        <el-form-item label="新密码" prop="password">
-          <el-input v-model="resetPwdForm.password" type="password" show-password placeholder="请输入新密码" />
+        <el-form-item :label="t('login.password')" prop="password">
+          <el-input v-model="resetPwdForm.password" type="password" show-password :placeholder="t('login.password')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="resetPwdVisible=false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleResetPwd">确定</el-button>
+        <el-button @click="resetPwdVisible=false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleResetPwd">{{ t('common.confirm') }}</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, h, computed } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUserList, createUser, updateUser, deleteUser } from '@/api/user'
+import { useI18n } from '@/i18n'
+
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const submitting = ref(false)
 const list = ref([])
 const total = ref(0)
 const query = reactive({ page: 1, pageSize: 20, keyword: '', status: '' })
+
+// 虚拟滚动表格列定义（大数据量场景，>50 行时启用，依赖 locale.value 以触发响应式刷新）
+const v2Columns = computed(() => [
+  { key: 'id', title: t('common.id'), dataKey: 'id', width: 80, align: 'center' },
+  { key: 'username', title: t('users.username'), dataKey: 'username', width: 180 },
+  {
+    key: 'status', title: t('common.status'), dataKey: 'status', width: 100, align: 'center',
+    cellRenderer: ({ rowData }) => h('el-tag', { type: rowData.status === 1 ? 'success' : 'danger', size: 'small' },
+      () => rowData.status === 1 ? t('users.active') : t('users.inactive')),
+  },
+  {
+    key: 'totpEnabled', title: t('users.totpEnabled'), dataKey: 'totpEnabled', width: 100, align: 'center',
+    cellRenderer: ({ rowData }) => h('el-tag', { type: rowData.totpEnabled ? 'primary' : 'info', size: 'small' },
+      () => rowData.totpEnabled ? t('users.enabled') : t('users.disabled')),
+  },
+  { key: 'createdAt', title: t('common.createdAt'), dataKey: 'createdAt', width: 200, cellRenderer: ({ rowData }) => fmt(rowData.createdAt) },
+  {
+    key: 'actions', title: t('common.actions'), dataKey: 'actions', width: 280, fixed: 'right', align: 'center',
+    cellRenderer: ({ rowData }) => h('div', { class: 'row-actions' }, [
+      h('el-button', {
+        size: 'small',
+        type: rowData.status === 1 ? 'warning' : 'success',
+        onClick: () => toggleStatus(rowData),
+      }, () => rowData.status === 1 ? t('common.disabled') : t('common.enabled')),
+      h('el-button', { size: 'small', type: 'info', onClick: () => openResetPwd(rowData) }, () => t('users.resetPassword')),
+      h('el-button', { size: 'small', type: 'danger', onClick: () => handleDelete(rowData) }, () => t('common.delete')),
+    ]),
+  },
+])
 
 const createVisible = ref(false)
 const resetPwdVisible = ref(false)
@@ -116,15 +172,15 @@ const resetPwdRef = ref()
 const createForm = reactive({ username: '', password: '' })
 const resetPwdForm = reactive({ password: '' })
 
-const createRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }, { min: 3, max: 32, message: '3-32位字符', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }, { min: 6, message: '至少6位', trigger: 'blur' }],
-}
-const resetPwdRules = {
-  password: [{ required: true, message: '请输入新密码', trigger: 'blur' }, { min: 6, message: '至少6位', trigger: 'blur' }],
-}
+const createRules = computed(() => ({
+  username: [{ required: true, message: t('users.username'), trigger: 'blur' }, { min: 3, max: 32, message: '3-32', trigger: 'blur' }],
+  password: [{ required: true, message: t('login.password'), trigger: 'blur' }, { min: 6, message: '≥6', trigger: 'blur' }],
+}))
+const resetPwdRules = computed(() => ({
+  password: [{ required: true, message: t('login.password'), trigger: 'blur' }, { min: 6, message: '≥6', trigger: 'blur' }],
+}))
 
-const fmt = (v) => v ? new Date(v).toLocaleString('zh-CN') : '-'
+const fmt = (v) => v ? new Date(v).toLocaleString(locale.value === 'zh-CN' ? 'zh-CN' : 'en-US') : '-'
 
 async function fetchList() {
   loading.value = true
@@ -150,7 +206,7 @@ async function handleCreate() {
     submitting.value = true
     try {
       await createUser({ username: createForm.username, password: createForm.password })
-      ElMessage.success('创建成功')
+      ElMessage.success(t('users.createSuccess'))
       createVisible.value = false
       fetchList()
     } finally { submitting.value = false }
@@ -158,11 +214,11 @@ async function handleCreate() {
 }
 
 async function toggleStatus(row) {
-  const action = row.status === 1 ? '禁用' : '启用'
+  const action = row.status === 1 ? t('common.disabled') : t('common.enabled')
   try {
-    await ElMessageBox.confirm(`确定要${action}用户「${row.username}」吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(t('users.toggleStatusConfirm', { action, name: row.username }), t('common.tip'), { type: 'warning' })
     await updateUser(row.id, { status: row.status === 1 ? 0 : 1 })
-    ElMessage.success(`${action}成功`)
+    ElMessage.success(t('common.success'))
     fetchList()
   } catch {}
 }
@@ -180,7 +236,7 @@ async function handleResetPwd() {
     submitting.value = true
     try {
       await updateUser(currentRow.value.id, { password: resetPwdForm.password })
-      ElMessage.success('密码重置成功')
+      ElMessage.success(t('users.resetPwdSuccess'))
       resetPwdVisible.value = false
     } finally { submitting.value = false }
   })
@@ -188,11 +244,11 @@ async function handleResetPwd() {
 
 async function handleDelete(row) {
   try {
-    await ElMessageBox.confirm(`确定删除用户「${row.username}」吗？此操作不可撤销。`, '警告', {
-      type: 'error', confirmButtonText: '删除', confirmButtonClass: 'el-button--danger',
+    await ElMessageBox.confirm(t('users.deleteConfirm', { name: row.username }), t('common.warning'), {
+      type: 'error', confirmButtonText: t('common.delete'), confirmButtonClass: 'el-button--danger',
     })
     await deleteUser(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('users.deleteSuccess'))
     fetchList()
   } catch {}
 }
@@ -203,4 +259,5 @@ onMounted(fetchList)
 <style scoped>
 .search-card :deep(.el-card__body) { padding: 16px 20px; }
 .pager { margin-top: 16px; display: flex; justify-content: flex-end; }
+.row-actions { display: flex; gap: 4px; justify-content: center; align-items: center; }
 </style>

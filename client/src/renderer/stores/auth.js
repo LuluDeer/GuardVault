@@ -1,58 +1,67 @@
+// 客户端用户态管理：所有鉴权操作经 IPC，token 在主进程
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import api from '../api/index.js';
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('user_token') || '');
-  const username = ref(localStorage.getItem('user_username') || '');
-  const serverUrl = ref('http://localhost:3000');
+  const user = ref(null);
+  const tokenExpired = ref(false);
+  const online = ref(true);
+  const loading = ref(false);
+  const serverUrl = ref('');
   const showPassword = ref(false);
 
-  async function initServerUrl() {
-    try {
-      const result = await window.electronAPI.getServerUrl();
-      if (result) serverUrl.value = result;
-    } catch {
-      // keep default
+  const isLoggedIn = computed(() => !!user.value);
+
+  async function bootstrap() {
+    // 读服务端地址
+    const cfg = await api.getConfig();
+    serverUrl.value = cfg.serverUrl || '';
+    // 启动时检查主进程是否已有 token，自动恢复登录态
+    const has = await api.hasToken();
+    if (has) {
+      user.value = await api.getUser();
     }
   }
 
-  function setServerUrl(url) {
+  async function setServerUrl(url) {
     serverUrl.value = url;
-    window.electronAPI.setServerUrl(url);
+    await api.setConfig({ serverUrl: url });
   }
 
-  function login(tokenValue, usernameValue) {
-    token.value = tokenValue;
-    username.value = usernameValue;
-    localStorage.setItem('user_token', tokenValue);
-    localStorage.setItem('user_username', usernameValue);
+  async function login(username, password) {
+    loading.value = true;
+    try {
+      const result = await api.login(username, password);
+      if (result.code === 0) {
+        user.value = result.data.user;
+        tokenExpired.value = false;
+        return { ok: true };
+      }
+      return { ok: false, message: result.message || '登录失败' };
+    } catch (err) {
+      return { ok: false, message: '网络连接失败' };
+    } finally {
+      loading.value = false;
+    }
   }
 
-  function logout() {
-    token.value = '';
-    username.value = '';
-    localStorage.removeItem('user_token');
-    localStorage.removeItem('user_username');
+  async function logout() {
+    try { await api.logout(); } catch {}
+    user.value = null;
   }
 
-  function showPasswordChange() {
-    showPassword.value = true;
-  }
-
-  function hidePasswordChange() {
-    showPassword.value = false;
+  function bindNetworkEvents() {
+    api.onAuthExpired(() => {
+      user.value = null;
+      tokenExpired.value = true;
+    });
+    api.onNetOnline(() => { online.value = true; });
+    api.onNetOffline(() => { online.value = false; });
   }
 
   return {
-    token,
-    username,
-    serverUrl,
-    showPassword,
-    initServerUrl,
-    setServerUrl,
-    login,
-    logout,
-    showPasswordChange,
-    hidePasswordChange
+    user, tokenExpired, online, loading, serverUrl, showPassword, isLoggedIn,
+    bootstrap, setServerUrl, login, logout, bindNetworkEvents,
   };
 });

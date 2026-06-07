@@ -3,6 +3,9 @@ import * as userService from '../services/user.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { z } from 'zod';
+import { prisma } from '../utils/prisma.js';
+import { decrypt } from '../utils/crypto.js';
+import { getUserKey } from '../services/totp.service.js';
 
 /**
  * 开通2FA
@@ -113,4 +116,41 @@ export async function getUserCode(request, reply) {
     }
     throw err;
   }
+}
+
+/**
+ * 管理员查看用户的当前TOTP密钥（用于二维码绑定、用户自助扫描）
+ * 返回原始 base32 secret 和 otpauth URL（Google Authenticator 兼容）
+ */
+export async function getUserSecret(request, reply) {
+  const userId = parseInt(request.params.userId, 10);
+  if (!userId) return fail(reply, ErrorCode.PARAM_ERROR, '用户ID无效');
+
+  const key = await getUserKey(userId);
+  if (!key || key.isEnable !== 1) {
+    return fail(reply, ErrorCode.TOTP_NOT_BOUND, '该用户尚未绑定TOTP');
+  }
+
+  const secret = decrypt(key.encryptedSecret);
+  const user = await prisma.systemUser.findUnique({
+    where: { id: userId }, select: { username: true },
+  });
+
+  const otpauthUrl = `otpauth://totp/TOTPClient:${encodeURIComponent(user.username)}?secret=${secret}&issuer=TOTPClient&period=30&digits=6&algorithm=SHA1`;
+
+  await writeLog({
+    operatorId: request.user.id, operatorName: request.user.username,
+    targetUserId: userId, targetUsername: user.username,
+    actionType: 'ADMIN_VIEW_SECRET',
+    actionDesc: `管理员查看用户 ${user.username} 的TOTP密钥`,
+    clientIp: request.ip, result: 1,
+  });
+
+  return success(reply, {
+    userId,
+    username: user.username,
+    secret,
+    otpauthUrl,
+    boundAt: key.resetTime,
+  });
 }

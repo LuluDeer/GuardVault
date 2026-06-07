@@ -1,0 +1,370 @@
+// 轻量级 i18n 模块（无外部依赖）
+// 使用方式：
+//   import { useI18n } from '@/i18n'
+//   const { t, locale } = useI18n()
+//   t('common.confirm')  // 插值：t('common.welcome', { name: 'TOTP' })
+
+import { ref, computed, reactive } from 'vue'
+
+const STORAGE_KEY = 'admin_locale'
+
+// 当前语言（响应式）
+export const locale = ref(localStorage.getItem(STORAGE_KEY) || 'zh-CN')
+
+// 支持的语言列表
+export const availableLocales = [
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'en-US', label: 'English' },
+]
+
+// 内置 Element Plus 语言包映射
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import en from 'element-plus/es/locale/lang/en'
+
+export const elementPlusLocaleMap = {
+  'zh-CN': zhCn,
+  'en-US': en,
+}
+
+// 翻译资源
+const messages = {
+  'zh-CN': {
+    common: {
+      confirm: '确定',
+      cancel: '取消',
+      save: '保存',
+      delete: '删除',
+      edit: '编辑',
+      create: '新建',
+      search: '搜索',
+      reset: '重置',
+      add: '新增',
+      export: '导出',
+      refresh: '刷新',
+      close: '关闭',
+      submit: '提交',
+      back: '返回',
+      loading: '加载中...',
+      success: '操作成功',
+      failed: '操作失败',
+      yes: '是',
+      no: '否',
+      all: '全部',
+      tip: '提示',
+      warning: '警告',
+      actions: '操作',
+      enabled: '启用',
+      disabled: '禁用',
+      status: '状态',
+      createdAt: '创建时间',
+      id: 'ID',
+    },
+    menu: {
+      services: '服务管理',
+      departments: '部门管理',
+      users: '用户管理',
+      totp: 'TOTP管理',
+      logs: '操作日志',
+      settings: '系统设置',
+      audit: '审计日志',
+    },
+    header: {
+      title: 'TOTP 管理系统',
+      logout: '退出登录',
+      theme: '主题',
+      light: '浅色',
+      dark: '暗色',
+      language: '语言',
+    },
+    login: {
+      title: 'TOTP 管理后台',
+      username: '用户名',
+      password: '密码',
+      totp: '动态口令',
+      login: '登录',
+      remember: '记住我',
+      welcome: '欢迎使用 TOTP 集中管理平台',
+      invalidTotp: '动态口令无效',
+      loginFailed: '登录失败',
+    },
+    services: {
+      title: '服务管理',
+      searchPlaceholder: '搜索服务名称或账号',
+      categoryFilter: '服务分类',
+      deptFilter: '所属部门',
+      addService: '新增服务',
+      scan: '扫码录入',
+      import: '批量导入',
+      name: '服务名称',
+      category: '分类',
+      identifier: '账号/ARN',
+      deptName: '所属部门',
+      url: '服务地址',
+      remark: '备注',
+      secret: '密钥(Base32)',
+      generate: '生成',
+      digits: '位数',
+      period: '周期(秒)',
+      algorithm: '算法',
+      detail: '详情',
+      qrCode: '二维码',
+      resetSecret: '重置密钥',
+      createSuccess: '创建成功',
+      updateSuccess: '更新成功',
+      deleteSuccess: '删除成功',
+      resetSecretConfirm: '确定重置「{name}」的密钥吗？',
+      deleteConfirm: '确定删除「{name}」吗？',
+      importSuccess: '成功导入 {count} 个服务',
+      exportSuccess: '导出成功',
+    },
+    users: {
+      title: '用户管理',
+      searchPlaceholder: '搜索用户名',
+      statusFilter: '状态筛选',
+      active: '正常',
+      inactive: '禁用',
+      username: '用户名',
+      totpEnabled: 'TOTP',
+      enabled: '已开启',
+      disabled: '未开启',
+      addUser: '新增用户',
+      resetPassword: '重置密码',
+      toggleStatusConfirm: '确定要{action}用户「{name}」吗？',
+      deleteConfirm: '确定删除用户「{name}」吗？此操作不可撤销。',
+      createSuccess: '创建成功',
+      deleteSuccess: '删除成功',
+      resetPwdSuccess: '密码重置成功',
+    },
+    departments: {
+      title: '部门管理',
+      name: '部门名称',
+      add: '新增部门',
+    },
+    totp: {
+      title: 'TOTP 管理',
+    },
+    logs: {
+      title: '操作日志',
+      time: '时间',
+      operator: '操作人',
+      action: '操作',
+      target: '目标',
+      ip: 'IP',
+      detail: '详情',
+      export: '导出日志',
+      exportRange: '时间范围',
+      exportFormat: '导出格式',
+    },
+    audit: {
+      title: '审计日志',
+      severity: '严重级别',
+      info: '信息',
+      warning: '警告',
+      error: '错误',
+      critical: '严重',
+    },
+    settings: {
+      title: '系统设置',
+      general: '基本设置',
+      security: '安全设置',
+      about: '关于',
+    },
+    theme: {
+      switchToDark: '切换到暗色',
+      switchToLight: '切换到浅色',
+    },
+    language: {
+      switchTo: '切换语言',
+    },
+  },
+  'en-US': {
+    common: {
+      confirm: 'Confirm',
+      cancel: 'Cancel',
+      save: 'Save',
+      delete: 'Delete',
+      edit: 'Edit',
+      create: 'Create',
+      search: 'Search',
+      reset: 'Reset',
+      add: 'Add',
+      export: 'Export',
+      refresh: 'Refresh',
+      close: 'Close',
+      submit: 'Submit',
+      back: 'Back',
+      loading: 'Loading...',
+      success: 'Success',
+      failed: 'Failed',
+      yes: 'Yes',
+      no: 'No',
+      all: 'All',
+      tip: 'Tip',
+      warning: 'Warning',
+      actions: 'Actions',
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      status: 'Status',
+      createdAt: 'Created At',
+      id: 'ID',
+    },
+    menu: {
+      services: 'Services',
+      departments: 'Departments',
+      users: 'Users',
+      totp: 'TOTP',
+      logs: 'Logs',
+      settings: 'Settings',
+      audit: 'Audit',
+    },
+    header: {
+      title: 'TOTP Admin',
+      logout: 'Logout',
+      theme: 'Theme',
+      light: 'Light',
+      dark: 'Dark',
+      language: 'Language',
+    },
+    login: {
+      title: 'TOTP Admin',
+      username: 'Username',
+      password: 'Password',
+      totp: '2FA Code',
+      login: 'Sign in',
+      remember: 'Remember me',
+      welcome: 'Welcome to TOTP Centralized Platform',
+      invalidTotp: 'Invalid 2FA code',
+      loginFailed: 'Login failed',
+    },
+    services: {
+      title: 'Services',
+      searchPlaceholder: 'Search service name or account',
+      categoryFilter: 'Category',
+      deptFilter: 'Department',
+      addService: 'Add Service',
+      scan: 'Scan QR',
+      import: 'Bulk Import',
+      name: 'Service Name',
+      category: 'Category',
+      identifier: 'Account/ARN',
+      deptName: 'Department',
+      url: 'URL',
+      remark: 'Remark',
+      secret: 'Secret (Base32)',
+      generate: 'Generate',
+      digits: 'Digits',
+      period: 'Period(s)',
+      algorithm: 'Algorithm',
+      detail: 'Detail',
+      qrCode: 'QR Code',
+      resetSecret: 'Reset Secret',
+      createSuccess: 'Created successfully',
+      updateSuccess: 'Updated successfully',
+      deleteSuccess: 'Deleted successfully',
+      resetSecretConfirm: 'Reset secret for "{name}"?',
+      deleteConfirm: 'Delete "{name}"?',
+      importSuccess: 'Imported {count} services',
+      exportSuccess: 'Exported successfully',
+    },
+    users: {
+      title: 'Users',
+      searchPlaceholder: 'Search username',
+      statusFilter: 'Status',
+      active: 'Active',
+      inactive: 'Inactive',
+      username: 'Username',
+      totpEnabled: '2FA',
+      enabled: 'On',
+      disabled: 'Off',
+      addUser: 'Add User',
+      resetPassword: 'Reset Password',
+      toggleStatusConfirm: '{action} user "{name}"?',
+      deleteConfirm: 'Delete user "{name}"? This cannot be undone.',
+      createSuccess: 'User created',
+      deleteSuccess: 'User deleted',
+      resetPwdSuccess: 'Password reset',
+    },
+    departments: {
+      title: 'Departments',
+      name: 'Department Name',
+      add: 'Add Department',
+    },
+    totp: {
+      title: 'TOTP Management',
+    },
+    logs: {
+      title: 'Operation Logs',
+      time: 'Time',
+      operator: 'Operator',
+      action: 'Action',
+      target: 'Target',
+      ip: 'IP',
+      detail: 'Detail',
+      export: 'Export Logs',
+      exportRange: 'Time Range',
+      exportFormat: 'Format',
+    },
+    audit: {
+      title: 'Audit Logs',
+      severity: 'Severity',
+      info: 'Info',
+      warning: 'Warning',
+      error: 'Error',
+      critical: 'Critical',
+    },
+    settings: {
+      title: 'Settings',
+      general: 'General',
+      security: 'Security',
+      about: 'About',
+    },
+    theme: {
+      switchToDark: 'Switch to Dark',
+      switchToLight: 'Switch to Light',
+    },
+    language: {
+      switchTo: 'Switch Language',
+    },
+  },
+}
+
+// 获取嵌套键
+function getNested(obj, path) {
+  return path.split('.').reduce((acc, key) => (acc != null ? acc[key] : undefined), obj)
+}
+
+// 翻译函数
+export function translate(key, params = {}) {
+  const msg = getNested(messages[locale.value], key)
+  if (msg == null) {
+    // 回退到中文
+    const fallback = getNested(messages['zh-CN'], key)
+    if (fallback == null) return key
+    return interpolate(fallback, params)
+  }
+  return interpolate(msg, params)
+}
+
+function interpolate(str, params) {
+  if (!str || typeof str !== 'string' || !params) return str
+  return str.replace(/\{(\w+)\}/g, (_, k) => (params[k] != null ? params[k] : `{${k}}`))
+}
+
+export function setLocale(lang) {
+  if (messages[lang]) {
+    locale.value = lang
+    localStorage.setItem(STORAGE_KEY, lang)
+    // 同步 Element Plus 语言
+    document.documentElement.setAttribute('lang', lang)
+  }
+}
+
+// composable
+export function useI18n() {
+  return {
+    locale,
+    availableLocales,
+    t: translate,
+    setLocale,
+  }
+}

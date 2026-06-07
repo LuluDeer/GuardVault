@@ -1,8 +1,13 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import { assertEnv } from './utils/env.js';
+import { errorHandler } from './utils/error.js';
 import adminRoutes from './routes/admin/index.js';
 import userRoutes from './routes/user/index.js';
+
+// 启动前强校验环境变量，缺一即拒启
+assertEnv();
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.BIND_HOST || '0.0.0.0';
@@ -28,11 +33,8 @@ await fastify.register(userRoutes);
 // 健康检查
 fastify.get('/health', async () => ({ status: 'ok', time: new Date().toISOString() }));
 
-// 全局错误处理（不向外暴露堆栈信息）
-fastify.setErrorHandler((error, request, reply) => {
-  fastify.log.error({ err: error, url: request.url }, 'Unhandled error');
-  reply.code(500).send({ code: 5000, message: '服务器内部错误', data: null });
-});
+// 全局错误处理（统一捕获 zod / prisma / 未知错误）
+fastify.setErrorHandler(errorHandler);
 
 // 启动
 try {

@@ -1,15 +1,15 @@
 <template>
   <div class="login-wrap">
     <el-card class="login-card">
-      <div class="login-title">TOTP 管理系统</div>
+      <div class="login-title">{{ t('login.title') }}</div>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="0" @keyup.enter="handleLogin">
         <el-form-item prop="username">
-          <el-input v-model="form.username" placeholder="用户名" :prefix-icon="User" size="large" />
+          <el-input v-model="form.username" :placeholder="t('login.username')" :prefix-icon="User" size="large" />
         </el-form-item>
         <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="密码" :prefix-icon="Lock" size="large" show-password />
+          <el-input v-model="form.password" type="password" :placeholder="t('login.password')" :prefix-icon="Lock" size="large" show-password />
         </el-form-item>
-        <el-button type="primary" size="large" :loading="loading" style="width:100%" @click="handleLogin">登 录</el-button>
+        <el-button type="primary" size="large" :loading="loading" style="width:100%" @click="handleLogin">{{ t('login.login') }}</el-button>
       </el-form>
     </el-card>
   </div>
@@ -21,16 +21,18 @@ import { useRouter, useRoute } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useI18n } from '@/i18n'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const { t } = useI18n()
 const loading = ref(false)
 const formRef = ref()
 const form = reactive({ username: '', password: '' })
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  username: [{ required: true, message: () => t('login.username'), trigger: 'blur' }],
+  password: [{ required: true, message: () => t('login.password'), trigger: 'blur' }],
 }
 
 async function handleLogin() {

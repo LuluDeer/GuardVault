@@ -1,28 +1,39 @@
-import { ref, onMounted } from 'vue';
-
 export async function request(config) {
-  return await window.electronAPI.request(config);
+  return window.electronAPI.request(config);
 }
 
-export async function login(username, password) {
-  return await request({
-    method: 'POST',
-    url: '/api/user/login',
-    data: { username, password }
-  });
-}
+export const api = {
+  login: (username, password) => window.electronAPI.login(username, password),
+  logout: () => window.electronAPI.logout(),
+  getUser: () => window.electronAPI.getUser(),
+  hasToken: () => window.electronAPI.hasToken(),
+  changePassword: (oldPwd, newPwd) => window.electronAPI.changePassword(oldPwd, newPwd),
 
-export async function getTotpCode() {
-  return await request({
-    method: 'GET',
-    url: '/api/user/totp/code'
-  });
-}
+  getTotpCode: () => window.electronAPI.getTotpCode(),
 
-export async function changePassword(oldPassword, newPassword) {
-  return await request({
-    method: 'POST',
-    url: '/api/user/password',
-    data: { oldPassword, newPassword }
-  });
-}
+  getServiceList: () => window.electronAPI.getServiceList(),
+  getServiceDetail: (id) => window.electronAPI.getServiceDetail(id),
+  getServiceCode: (id) => window.electronAPI.getServiceCode(id),
+  reportCopy: (accountId) => window.electronAPI.reportCopy(accountId),
+
+  request,
+
+  getConfig: () => window.electronAPI.getConfig(),
+  setConfig: (c) => window.electronAPI.setConfig(c),
+  getAutoStart: () => window.electronAPI.getAutoStart(),
+  setAutoStart: (b) => window.electronAPI.setAutoStart(b),
+
+  copy: (text) => window.electronAPI.copyToClipboard(text),
+  clearClipboard: () => window.electronAPI.clearClipboard(),
+  notify: (title, body) => window.electronAPI.notify(title, body),
+
+  minimize: () => window.electronAPI.minimize(),
+  closeWindow: () => window.electronAPI.closeWindow(),
+  toggleMaximize: () => window.electronAPI.toggleMaximize(),
+
+  onAuthExpired: (cb) => window.electronAPI.onAuthExpired(cb),
+  onNetOnline: (cb) => window.electronAPI.onNetOnline(cb),
+  onNetOffline: (cb) => window.electronAPI.onNetOffline(cb),
+};
+
+export default api;

@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../utils/prisma.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
 import { generateSecret, generateCode } from '../utils/totp.js';
-
-const prisma = new PrismaClient();
 
 /**
  * 为用户开通2FA（生成密钥并加密入库）
@@ -99,4 +97,12 @@ export async function getTotpStatus(userId) {
     resetTime: key?.resetTime ?? null,
     resetCount: key?.resetCount ?? 0,
   };
+}
+
+/**
+ * 获取用户密钥记录（不解密），供管理员查询二维码使用
+ * 返回 null 表示未绑定
+ */
+export async function getUserKey(userId) {
+  return prisma.userTotpKey.findUnique({ where: { userId } });
 }

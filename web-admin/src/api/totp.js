@@ -23,3 +23,8 @@ export function batchResetTotp(userIds) {
 export function getTotpCode(userId) {
   return request.get(`/admin/totp/code/${userId}`)
 }
+
+// 获取用户的 TOTP 原始密钥和 otpauth URL（用于二维码绑定）
+export function getUserSecret(userId) {
+  return request.get(`/admin/totp/secret/${userId}`)
+}

@@ -1,16 +1,6 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
-
-// 黑名单：Map<jti, expireAt时间戳>
-const blacklist = new Map();
-
-// 每小时清理已过期的黑名单条目
-setInterval(() => {
-  const now = Date.now();
-  for (const [jti, expireAt] of blacklist) {
-    if (expireAt < now) blacklist.delete(jti);
-  }
-}, 3_600_000);
+import { revokeJti, isRevoked } from './token-blacklist.service.js';
 
 /**
  * 签发JWT Token
@@ -28,17 +18,17 @@ export function signToken(payload, expiresIn) {
 }
 
 /**
- * 吊销Token（加入黑名单）
+ * 吊销Token（加入黑名单，持久化到 MySQL）
  * @param {string} token
  */
-export function revokeToken(token) {
+export async function revokeToken(token) {
   try {
     const decoded = jwt.decode(token);
     if (decoded?.jti && decoded?.exp) {
-      blacklist.set(decoded.jti, decoded.exp * 1000);
+      await revokeJti(decoded.jti, decoded.exp * 1000);
     }
   } catch {
-    // 忽略无效token
+    // 忽略无效 token
   }
 }
 
@@ -48,9 +38,9 @@ export function revokeToken(token) {
  * @returns {object} decoded payload
  * @throws {Error} TOKEN_REVOKED / jwt验证失败
  */
-export function verifyToken(token) {
+export async function verifyToken(token) {
   const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  if (blacklist.has(decoded.jti)) {
+  if (await isRevoked(decoded.jti)) {
     throw new Error('TOKEN_REVOKED');
   }
   return decoded;

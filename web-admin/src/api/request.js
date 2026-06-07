@@ -39,3 +39,4 @@ request.interceptors.response.use(
 )
 
 export default request
+export { axios }

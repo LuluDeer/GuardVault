@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../utils/prisma.js';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
 
 /**
  * 获取用户列表（分页）

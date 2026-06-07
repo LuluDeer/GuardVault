@@ -7,57 +7,153 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 部门：用于服务归属和部门管理员范围
+model Department {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(64)
+  code      String   @unique @db.VarChar(32) // 短编码，方便URL/导入
+  remark    String?  @db.VarChar(256)
+  status    Int      @default(1) // 1=启用 0=停用
+  sort      Int      @default(0) // 显示顺序
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users    SystemUser[]
+  services ServiceAccount[]
+
+  @@map("department")
+}
+
 model SystemUser {
-  id            Int          @id @default(autoincrement())
-  username      String       @unique @db.VarChar(32)
-  password      String       @db.VarChar(128)
-  role          String       @db.VarChar(16)
-  status        Int          @default(1)
-  failCount     Int          @default(0)        @map("fail_count")
-  lockedUntil   DateTime?    @map("locked_until")
-  lastLoginTime DateTime?    @map("last_login_time")
-  lastLoginIp   String?      @db.VarChar(45)    @map("last_login_ip")
-  createdAt     DateTime     @default(now())    @map("created_at")
-  updatedAt     DateTime     @updatedAt         @map("updated_at")
+  id            Int       @id @default(autoincrement())
+  username      String    @unique @db.VarChar(32)
+  password      String    @db.VarChar(128)
+  role          String    @db.VarChar(16) // super_admin / dept_admin / user
+  status        Int       @default(1)
+  failCount     Int       @default(0) @map("fail_count")
+  lockedUntil   DateTime? @map("locked_until")
+  lastLoginTime DateTime? @map("last_login_time")
+  lastLoginIp   String?   @map("last_login_ip") @db.VarChar(45)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  // 部门：超管可空；dept_admin / user 必填
+  deptId        Int?      @map("dept_id")
+
+  totpKey         UserTotpKey?     @relation("UserTotpKey")
+  department      Department?      @relation(fields: [deptId], references: [id], onDelete: SetNull)
+  grants          AccountGrant[]   @relation("GrantUser")
+  grantedByMe     AccountGrant[]   @relation("GrantOperator")
+  createdServices ServiceAccount[] @relation("ServiceCreator")
+
+  @@index([deptId])
+  @@index([role])
   @@map("system_user")
 }
 
 model UserTotpKey {
   id              Int        @id @default(autoincrement())
-  userId          Int        @unique  @map("user_id")
-  encryptedSecret String     @db.VarChar(512) @map("encrypted_secret")
-  isEnable        Int        @default(0)      @map("is_enable")
-  resetCount      Int        @default(0)      @map("reset_count")
+  userId          Int        @unique @map("user_id")
+  encryptedSecret String     @map("encrypted_secret") @db.VarChar(512)
+  isEnable        Int        @default(0) @map("is_enable")
+  resetCount      Int        @default(0) @map("reset_count")
   resetTime       DateTime?  @map("reset_time")
-  createdAt       DateTime   @default(now())  @map("created_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  user            SystemUser @relation("UserTotpKey", fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("user_totp_key")
 }
 
+// 服务账号 = 一个 TOTP 密钥 + 元数据（中心化 2FA 保险柜的核心）
+model ServiceAccount {
+  id         Int     @id @default(autoincrement())
+  name       String  @db.VarChar(64) // "AWS 生产账号"
+  category   String  @db.VarChar(32) // 云服务/VPN/代码托管/堡垒机/数据库/办公/其他
+  identifier String? @db.VarChar(128) // 账号 / ARN / 邮箱
+  url        String? @db.VarChar(256) // 服务地址
+  remark     String? @db.VarChar(256)
+  icon       String? @db.VarChar(512) // base64 或 url
+
+  encryptedSecret String @map("encrypted_secret") @db.VarChar(512)
+  digits          Int    @default(6)
+  period          Int    @default(30)
+  algorithm       String @default("SHA1") // SHA1 / SHA256 / SHA512
+
+  status Int @default(1) // 1=启用 0=停用
+
+  deptId      Int      @map("dept_id") // 服务归属部门
+  createdById Int      @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  department Department     @relation(fields: [deptId], references: [id], onDelete: Restrict)
+  createdBy  SystemUser     @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  grants     AccountGrant[]
+
+  @@index([deptId])
+  @@index([category])
+  @@index([status])
+  @@map("service_account")
+}
+
+// 授权：哪个用户能看哪个服务
+model AccountGrant {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  accountId   Int      @map("account_id")
+  grantedById Int      @map("granted_by_id")
+  grantedAt   DateTime @default(now()) @map("granted_at")
+  remark      String?  @db.VarChar(256)
+
+  user      SystemUser     @relation("GrantUser", fields: [userId], references: [id], onDelete: Cascade)
+  account   ServiceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  grantedBy SystemUser     @relation("GrantOperator", fields: [grantedById], references: [id], onDelete: Restrict)
+
+  @@unique([userId, accountId])
+  @@index([userId])
+  @@index([accountId])
+  @@map("account_grant")
+}
+
 model SystemLog {
-  id             BigInt     @id @default(autoincrement())
-  operatorId     Int        @map("operator_id")
-  operatorName   String     @db.VarChar(32)  @map("operator_name")
-  targetUserId   Int?       @map("target_user_id")
-  targetUsername String?    @db.VarChar(32)  @map("target_username")
-  actionType     String     @db.VarChar(32)  @map("action_type")
-  actionDesc     String     @db.VarChar(512) @map("action_desc")
-  clientIp       String     @db.VarChar(45)  @map("client_ip")
-  userAgent      String?    @db.VarChar(256) @map("user_agent")
-  result         Int
-  failReason     String?    @db.VarChar(256) @map("fail_reason")
-  createdAt      DateTime   @default(now())  @map("created_at")
+  id                BigInt   @id @default(autoincrement())
+  operatorId        Int      @map("operator_id")
+  operatorName      String   @map("operator_name") @db.VarChar(32)
+  targetUserId      Int?     @map("target_user_id")
+  targetUsername    String?  @map("target_username") @db.VarChar(32)
+  // 新增：可关联服务
+  targetAccountId   Int?     @map("target_account_id")
+  targetAccountName String?  @map("target_account_name") @db.VarChar(64)
+  actionType        String   @map("action_type") @db.VarChar(32)
+  actionDesc        String   @map("action_desc") @db.VarChar(512)
+  clientIp          String   @map("client_ip") @db.VarChar(45)
+  userAgent         String?  @map("user_agent") @db.VarChar(256)
+  result            Int
+  failReason        String?  @map("fail_reason") @db.VarChar(256)
+  createdAt         DateTime @default(now()) @map("created_at")
+
   @@index([createdAt])
   @@index([operatorId])
   @@index([actionType])
+  @@index([targetAccountId])
   @@map("system_log")
 }
 
 model SystemConfig {
   id          Int      @id @default(autoincrement())
-  configKey   String   @unique @db.VarChar(64)  @map("config_key")
-  configValue String   @db.VarChar(256)         @map("config_value")
+  configKey   String   @unique @map("config_key") @db.VarChar(64)
+  configValue String   @map("config_value") @db.VarChar(256)
   description String?  @db.VarChar(256)
-  updatedAt   DateTime @updatedAt               @map("updated_at")
-  updatedBy   String?  @db.VarChar(32)          @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedBy   String?  @map("updated_by") @db.VarChar(32)
+
   @@map("system_config")
+}
+
+model TokenBlacklist {
+  jti       String   @id @db.VarChar(64)
+  expireAt  BigInt   @map("expire_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([expireAt])
+  @@map("token_blacklist")
 }

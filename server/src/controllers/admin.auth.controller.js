@@ -1,13 +1,11 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { findUserByUsername, createUser } from '../services/user.service.js';
+import { findUserByUsername, createUser, clearLoginFail, recordLoginFail } from '../services/user.service.js';
 import { signToken, revokeToken } from '../services/auth.service.js';
 import { writeLog } from '../services/log.service.js';
-import { initDefaultConfig } from '../services/config.service.js';
+import { getConfig, initDefaultConfig } from '../services/config.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma.js';
 
 const loginSchema = z.object({
   username: z.string().min(1).max(32),
@@ -29,7 +27,7 @@ export async function login(request, reply) {
   const user = await findUserByUsername(username);
 
   // 用户不存在
-  if (!user || user.role !== 'admin') {
+  if (!user || !['super_admin', 'dept_admin', 'admin'].includes(user.role)) {
     return fail(reply, ErrorCode.WRONG_CREDENTIALS, '用户名或密码错误');
   }
 
@@ -37,6 +35,10 @@ export async function login(request, reply) {
   if (user.status === 0) {
     return fail(reply, ErrorCode.ACCOUNT_DISABLED, '账号已被禁用');
   }
+
+  // 从系统配置读取锁定参数
+  const maxFail = parseInt(await getConfig('login_fail_max') || '5', 10);
+  const lockMinutes = parseInt(await getConfig('login_lock_minutes') || '10', 10);
 
   // 账号锁定
   if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -47,29 +49,22 @@ export async function login(request, reply) {
   // 验证密码
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
-    // 记录失败次数
-    const newCount = (user.failCount || 0) + 1;
-    const maxFail = 5;
-    const lockMinutes = 10;
-    const data = { failCount: newCount };
-    if (newCount >= maxFail) {
-      data.lockedUntil = new Date(Date.now() + lockMinutes * 60 * 1000);
-    }
-    await prisma.systemUser.update({ where: { id: user.id }, data });
+    const { failCount, locked } = await recordLoginFail(user.id, maxFail, lockMinutes);
 
     await writeLog({
       operatorId: user.id, operatorName: username,
       actionType: 'ADMIN_LOGIN', actionDesc: '管理员登录失败：密码错误',
       clientIp, userAgent, result: 0, failReason: '密码错误',
     });
-    return fail(reply, ErrorCode.WRONG_CREDENTIALS, '用户名或密码错误');
+    if (locked) {
+      return fail(reply, ErrorCode.ACCOUNT_LOCKED, `密码错误超过 ${maxFail} 次，账号已被锁定 ${lockMinutes} 分钟`);
+    }
+    const remaining = maxFail - failCount;
+    return fail(reply, ErrorCode.WRONG_CREDENTIALS, `密码错误，还可尝试 ${remaining} 次`);
   }
 
   // 登录成功
-  await prisma.systemUser.update({
-    where: { id: user.id },
-    data: { failCount: 0, lockedUntil: null, lastLoginTime: new Date(), lastLoginIp: clientIp },
-  });
+  await clearLoginFail(user.id, clientIp);
 
   const expireSeconds = parseInt(process.env.JWT_ADMIN_EXPIRE || '1800', 10);
   const token = signToken({ id: user.id, username: user.username, role: user.role }, expireSeconds);
@@ -88,7 +83,7 @@ export async function login(request, reply) {
  * 管理员登出
  */
 export async function logout(request, reply) {
-  revokeToken(request.token);
+  await revokeToken(request.token);
   await writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'ADMIN_LOGOUT', actionDesc: '管理员登出',
@@ -117,7 +112,7 @@ export async function initSystem(request, reply) {
 
   const hash = await bcrypt.hash(parsed.data.password, 12);
   const admin = await prisma.systemUser.create({
-    data: { username: parsed.data.username, password: hash, role: 'admin', status: 1 },
+    data: { username: parsed.data.username, password: hash, role: 'super_admin', status: 1, deptId: null },
     select: { id: true, username: true },
   });
 
@@ -130,4 +125,53 @@ export async function initSystem(request, reply) {
   });
 
   return success(reply, { message: '初始化成功', username: admin.username });
+}
+
+/**
+ * 管理员修改自己的密码（修改后吊销当前Token，强制重登）
+ */
+const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1).max(128),
+  newPassword: z.string().min(8).max(128).regex(/^(?=.*[a-zA-Z])(?=.*[0-9])/,
+    '密码必须8位以上且同时包含字母和数字'),
+});
+
+export async function changePassword(request, reply) {
+  const parsed = changePasswordSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return fail(reply, ErrorCode.PARAM_ERROR,
+      parsed.error.errors?.[0]?.message || '参数校验失败');
+  }
+  const { oldPassword, newPassword } = parsed.data;
+  const adminId = request.user.id;
+
+  const user = await prisma.systemUser.findUnique({ where: { id: adminId } });
+  if (!user) {
+    return fail(reply, ErrorCode.USER_NOT_FOUND, '账号不存在');
+  }
+  const valid = await bcrypt.compare(oldPassword, user.password);
+  if (!valid) {
+    return fail(reply, ErrorCode.WRONG_CREDENTIALS, '原密码错误');
+  }
+  if (oldPassword === newPassword) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '新密码不能与原密码相同');
+  }
+
+  const hash = await bcrypt.hash(newPassword, 12);
+  await prisma.systemUser.update({
+    where: { id: adminId },
+    data: { password: hash, failCount: 0, lockedUntil: null },
+  });
+
+  // 吊销当前Token，强制重新登录
+  await revokeToken(request.token);
+
+  await writeLog({
+    operatorId: adminId, operatorName: request.user.username,
+    actionType: 'ADMIN_CHANGE_PASSWORD',
+    actionDesc: '管理员修改自己密码',
+    clientIp: request.ip, result: 1,
+  });
+
+  return success(reply, { message: '密码已修改，请重新登录' });
 }

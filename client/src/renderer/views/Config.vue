@@ -23,27 +23,37 @@
   </div>
 </template>
 
-<script setup>import { ref } from 'vue';
+<script setup>
+import { ref, onMounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import api from '../api';
+
 const auth = useAuthStore();
 const serverUrl = ref('');
 const loading = ref(false);
 const error = ref('');
 
+onMounted(() => {
+  serverUrl.value = auth.serverUrl || '';
+});
+
 async function handleSave() {
-  if (!serverUrl.value.trim())
- return;
- loading.value = true;
- error.value = '';
- try {
- auth.setServerUrl(serverUrl.value.trim());
- }
- catch (e) {
- error.value = '配置保存失败';
- }
- finally {
- loading.value = false;
- }
+  if (!serverUrl.value.trim()) return;
+  loading.value = true;
+  error.value = '';
+  try {
+    // 先测连通
+    const probe = await api.request({ method: 'GET', url: '/health' });
+    if (probe?.status !== 'ok') {
+      error.value = '无法连接到该地址，请检查服务端是否启动';
+      return;
+    }
+    await auth.setServerUrl(serverUrl.value.trim());
+  } catch (e) {
+    error.value = '无法连接到该地址，请检查网络和服务端';
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
 

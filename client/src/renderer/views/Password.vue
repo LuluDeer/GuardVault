@@ -45,9 +45,11 @@
   </div>
 </template>
 
-<script setup>import { ref } from 'vue';
+<script setup>
+import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
-import { changePassword } from '../api';
+import api from '../api';
+
 const auth = useAuthStore();
 const showSuccess = ref(false);
 const oldPassword = ref('');
@@ -57,36 +59,27 @@ const loading = ref(false);
 const error = ref('');
 
 async function handleSubmit() {
-  if (!oldPassword.value) {
-    error.value = '请输入原密码';
+  if (!oldPassword.value) { error.value = '请输入原密码'; return; }
+  if (!newPassword.value) { error.value = '请输入新密码'; return; }
+  if (newPassword.value.length < 8) { error.value = '新密码至少8位'; return; }
+  if (!/[a-zA-Z]/.test(newPassword.value) || !/[0-9]/.test(newPassword.value)) {
+    error.value = '新密码必须同时包含字母和数字';
     return;
   }
-  
-  if (!newPassword.value) {
-    error.value = '请输入新密码';
-    return;
-  }
-  
-  if (newPassword.value.length < 6) {
-    error.value = '新密码至少需要6位';
-    return;
-  }
-  
   if (newPassword.value !== confirmPassword.value) {
     error.value = '两次输入的密码不一致';
     return;
   }
-  
   loading.value = true;
   error.value = '';
-  
   try {
-    const result = await changePassword(oldPassword.value, newPassword.value);
-    
+    const result = await api.changePassword(oldPassword.value, newPassword.value);
     if (result.code === 0) {
       showSuccess.value = true;
+      // 主进程已清token，1.5秒后跳登录
       setTimeout(() => {
-        auth.hidePasswordChange();
+        auth.showPassword = false;
+        auth.user = null;
       }, 1500);
     } else {
       error.value = result.message || '修改失败';
@@ -99,7 +92,7 @@ async function handleSubmit() {
 }
 
 function goBack() {
-  auth.hidePasswordChange();
+  auth.showPassword = false;
 }
 </script>
 

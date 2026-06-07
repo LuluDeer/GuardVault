@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma.js';
 
 // 配置缓存（避免每次请求都查库）
 let cache = null;

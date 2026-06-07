@@ -11,7 +11,7 @@ export async function authenticate(request, reply) {
     return fail(reply, ErrorCode.TOKEN_INVALID, 'Token缺失或格式错误', 401);
   }
   try {
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
     request.user = decoded;
     // 存储原始token，供登出时使用
     request.token = token;
