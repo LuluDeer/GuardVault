@@ -12,6 +12,9 @@
         <el-menu-item index="/services">
           <el-icon><Grid /></el-icon><span>{{ t('menu.services') }}</span>
         </el-menu-item>
+        <el-menu-item index="/import">
+          <el-icon><Upload /></el-icon><span>谷歌OTP导入</span>
+        </el-menu-item>
         <el-menu-item index="/departments">
           <el-icon><OfficeBuilding /></el-icon><span>{{ t('menu.departments') }}</span>
         </el-menu-item>
@@ -85,7 +88,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { User, Key, Document, Setting, ArrowDown, Grid, OfficeBuilding, DataAnalysis, Sunny, Moon, Position } from '@element-plus/icons-vue'
+import { User, Key, Document, Setting, ArrowDown, Grid, OfficeBuilding, DataAnalysis, Sunny, Moon, Position, Upload } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { useI18n } from '@/i18n'

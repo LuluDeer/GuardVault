@@ -13,6 +13,7 @@ import * as auditController from '../../controllers/admin.audit.controller.js';
 import * as securityController from '../../controllers/admin.security.controller.js';
 import * as refreshController from '../../controllers/admin.refresh.controller.js';
 import * as statusController from '../../controllers/admin.status.controller.js';
+import * as importController from '../../controllers/admin.import.controller.js';
 
 /**
  * 帮助函数：组装标准的 Fastify routeOptions（带 OpenAPI schema + security）
@@ -417,6 +418,99 @@ export default async function adminRoutes(fastify) {
       schema: { body: { $ref: 'ScanOtpauthRequest#' } },
     }),
     serviceController.createFromOtpauth,
+  );
+
+  // ===== Import =====
+  fastify.post(
+    '/api/admin/import/parse-migration',
+    route('Admin-Import', '解析谷歌OTP迁移URL（otpauth-migration://）', {
+      preHandler: adminPreHandler,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['url'],
+          properties: { url: { type: 'string' } },
+        },
+      },
+    }),
+    importController.parseMigrationUrl,
+  );
+
+  fastify.post(
+    '/api/admin/import/parse-url',
+    route('Admin-Import', '解析单个otpauth URL', {
+      preHandler: adminPreHandler,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['url'],
+          properties: { url: { type: 'string' } },
+        },
+      },
+    }),
+    importController.parseOtpauthUrl,
+  );
+
+  fastify.post(
+    '/api/admin/import/preview',
+    route('Admin-Import', '预览待导入的服务列表', {
+      preHandler: adminPreHandler,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['items'],
+          properties: {
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  issuer: { type: 'string' },
+                  secret: { type: 'string' },
+                  type: { type: 'string' },
+                  digits: { type: 'integer' },
+                  algorithm: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+    importController.previewImport,
+  );
+
+  fastify.post(
+    '/api/admin/import/confirm',
+    route('Admin-Import', '确认导入服务', {
+      preHandler: adminPreHandler,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['items', 'deptId'],
+          properties: {
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  selected: { type: 'boolean' },
+                  name: { type: 'string' },
+                  issuer: { type: 'string' },
+                  secret: { type: 'string' },
+                  category: { type: 'string' },
+                  digits: { type: 'integer' },
+                  algorithm: { type: 'string' },
+                },
+              },
+            },
+            deptId: { type: 'integer' },
+          },
+        },
+      },
+    }),
+    importController.confirmImport,
   );
 
   // ===== Grant =====

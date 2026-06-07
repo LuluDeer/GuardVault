@@ -1,4 +1,5 @@
 import axios from 'axios'
+export { axios }
 import { ElMessage } from 'element-plus'
 
 const request = axios.create({

@@ -14,6 +14,7 @@ const routes = [
     redirect: '/services',
     children: [
       { path: 'services', name: 'Services', component: () => import('@/views/Services.vue'), meta: { title: '服务管理', roles: ['super_admin', 'dept_admin'] } },
+      { path: 'import', name: 'Import', component: () => import('@/views/Import.vue'), meta: { title: '谷歌OTP导入', roles: ['super_admin', 'dept_admin'] } },
       { path: 'departments', name: 'Departments', component: () => import('@/views/Departments.vue'), meta: { title: '部门管理', roles: ['super_admin'] } },
       { path: 'users', name: 'Users', component: () => import('@/views/Users.vue'), meta: { title: '用户管理', roles: ['super_admin', 'dept_admin'] } },
       { path: 'totp', name: 'Totp', component: () => import('@/views/Totp.vue'), meta: { title: 'TOTP管理', roles: ['super_admin', 'dept_admin'] } },
