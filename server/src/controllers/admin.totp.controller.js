@@ -6,6 +6,11 @@ import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { decrypt } from '../utils/crypto.js';
 import bcrypt from 'bcryptjs';
+import { checkUserDeptAccess } from '../middlewares/authorize.js';
+
+const SECRET_VIEW_ATTEMPTS = new Map();
+const MAX_SECRET_VIEW_ATTEMPTS = 3;
+const SECRET_VIEW_LOCK_MINUTES = 15;
 
 /**
  * 开通2FA
@@ -14,6 +19,10 @@ export async function enableTotp(request, reply) {
   const userId = parseInt(request.params.userId, 10);
   const target = await userService.findUserById(userId);
   if (!target) return fail(reply, ErrorCode.USER_NOT_FOUND, '用户不存在');
+
+  if (!(await checkUserDeptAccess(request, userId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+  }
 
   await totpService.enableTotp(userId);
 
@@ -35,6 +44,10 @@ export async function disableTotp(request, reply) {
   const target = await userService.findUserById(userId);
   if (!target) return fail(reply, ErrorCode.USER_NOT_FOUND, '用户不存在');
 
+  if (!(await checkUserDeptAccess(request, userId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+  }
+
   await totpService.disableTotp(userId);
 
   await writeLog({
@@ -54,6 +67,10 @@ export async function resetTotp(request, reply) {
   const userId = parseInt(request.params.userId, 10);
   const target = await userService.findUserById(userId);
   if (!target) return fail(reply, ErrorCode.USER_NOT_FOUND, '用户不存在');
+
+  if (!(await checkUserDeptAccess(request, userId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+  }
 
   await totpService.resetTotp(userId);
 
@@ -79,6 +96,12 @@ export async function batchResetTotp(request, reply) {
     return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败：userIds需为1-50个正整数');
   }
 
+  for (const userId of parsed.data.userIds) {
+    if (!(await checkUserDeptAccess(request, userId))) {
+      return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+    }
+  }
+
   const result = await totpService.batchResetTotp(parsed.data.userIds);
 
   await writeLog({
@@ -98,6 +121,10 @@ export async function getUserCode(request, reply) {
   const userId = parseInt(request.params.userId, 10);
   const target = await userService.findUserById(userId);
   if (!target) return fail(reply, ErrorCode.USER_NOT_FOUND, '用户不存在');
+
+  if (!(await checkUserDeptAccess(request, userId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+  }
 
   try {
     const codeResult = await totpService.getUserCode(userId);
@@ -134,6 +161,13 @@ export async function getUserSecret(request, reply) {
   const userId = parseInt(request.params.userId, 10);
   if (!userId) return fail(reply, ErrorCode.PARAM_ERROR, '用户ID无效');
 
+  const attemptKey = `${request.user.id}_${userId}`;
+  const attempt = SECRET_VIEW_ATTEMPTS.get(attemptKey);
+  if (attempt && attempt.lockUntil > Date.now()) {
+    const remaining = Math.ceil((attempt.lockUntil - Date.now()) / 60000);
+    return fail(reply, ErrorCode.ACCOUNT_LOCKED, `操作过于频繁，请 ${remaining} 分钟后再试`);
+  }
+
   const admin = await prisma.systemUser.findUnique({
     where: { id: request.user.id },
     select: { password: true, username: true },
@@ -141,15 +175,27 @@ export async function getUserSecret(request, reply) {
 
   const passwordValid = await bcrypt.compare(parsed.data.adminPassword, admin.password);
   if (!passwordValid) {
+    const newAttempts = (attempt?.count || 0) + 1;
+    if (newAttempts >= MAX_SECRET_VIEW_ATTEMPTS) {
+      SECRET_VIEW_ATTEMPTS.set(attemptKey, {
+        count: newAttempts,
+        lockUntil: Date.now() + SECRET_VIEW_LOCK_MINUTES * 60000,
+      });
+    } else {
+      SECRET_VIEW_ATTEMPTS.set(attemptKey, { count: newAttempts, lockUntil: 0 });
+    }
+
     await writeLog({
       operatorId: request.user.id, operatorName: request.user.username,
       targetUserId: userId,
       actionType: 'ADMIN_VIEW_SECRET',
-      actionDesc: `管理员查看用户TOTP密钥失败：密码验证失败`,
+      actionDesc: `管理员查看用户TOTP密钥失败：密码验证失败（第${newAttempts}次）`,
       clientIp: request.ip, result: 0, failReason: '密码验证失败',
     });
-    return fail(reply, ErrorCode.WRONG_CREDENTIALS, '管理员密码错误');
+    return fail(reply, ErrorCode.WRONG_CREDENTIALS, `管理员密码错误，还可尝试 ${MAX_SECRET_VIEW_ATTEMPTS - newAttempts} 次`);
   }
+
+  SECRET_VIEW_ATTEMPTS.delete(attemptKey);
 
   const key = await totpService.getUserKey(userId);
   if (!key || key.isEnable !== 1) {

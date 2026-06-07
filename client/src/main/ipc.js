@@ -10,14 +10,6 @@ function getConfigPath() {
   return path.join(app.getPath('userData'), 'config.json');
 }
 
-function getConfig() {
-  try {
-    return JSON.parse(fs.readFileSync(getConfigPath(), 'utf8'));
-  } catch {
-    return { serverUrl: 'http://127.0.0.1:3000', darkMode: false, hotkey: 'Ctrl+Alt+T' };
-  }
-}
-
 function saveConfig(config) {
   try {
     const p = getConfigPath();
@@ -76,7 +68,7 @@ function startHeartbeat(getWindow) {
   if (heartbeatTimer) return;
   heartbeatTimer = setInterval(async () => {
     try {
-      const resp = await axios.get(getConfig().serverUrl + '/health', { timeout: 3000 });
+      const resp = await httpClient.get('/health', { timeout: 3000 });
       if (resp.data?.status === 'ok') {
         getWindow()?.webContents.send('net:online');
       } else {

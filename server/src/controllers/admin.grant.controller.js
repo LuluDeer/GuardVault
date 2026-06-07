@@ -4,6 +4,7 @@ import * as serviceService from '../services/service.service.js';
 import * as userService from '../services/user.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
+import { checkUserDeptAccess, checkServiceDeptAccess } from '../middlewares/authorize.js';
 
 export async function listGrants(request, reply) {
   const { page = 1, pageSize = 20, userId, accountId } = request.query;
@@ -45,6 +46,13 @@ export async function grantAccess(request, reply) {
   const service = await serviceService.getService(parsed.data.accountId);
   if (!service) {
     return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
+  }
+
+  if (!(await checkUserDeptAccess(request, parsed.data.userId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+  }
+  if (!(await checkServiceDeptAccess(request, parsed.data.accountId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门服务');
   }
 
   const grant = await grantService.grantAccess({
@@ -89,6 +97,13 @@ export async function revokeAccess(request, reply) {
     return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
   }
 
+  if (!(await checkUserDeptAccess(request, parsed.data.userId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+  }
+  if (!(await checkServiceDeptAccess(request, parsed.data.accountId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门服务');
+  }
+
   await grantService.revokeAccess(parsed.data.userId, parsed.data.accountId);
 
   await writeLog({
@@ -122,6 +137,15 @@ export async function batchGrant(request, reply) {
   const service = await serviceService.getService(parsed.data.accountId);
   if (!service) {
     return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
+  }
+
+  if (!(await checkServiceDeptAccess(request, parsed.data.accountId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门服务');
+  }
+  for (const userId of parsed.data.userIds) {
+    if (!(await checkUserDeptAccess(request, userId))) {
+      return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+    }
   }
 
   const results = await grantService.batchGrant({
@@ -158,6 +182,15 @@ export async function batchRevoke(request, reply) {
   const service = await serviceService.getService(parsed.data.accountId);
   if (!service) {
     return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
+  }
+
+  if (!(await checkServiceDeptAccess(request, parsed.data.accountId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门服务');
+  }
+  for (const userId of parsed.data.userIds) {
+    if (!(await checkUserDeptAccess(request, userId))) {
+      return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+    }
   }
 
   const results = await grantService.batchRevoke(parsed.data);

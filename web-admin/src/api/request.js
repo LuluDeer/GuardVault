@@ -23,11 +23,11 @@ async function doRefreshToken() {
   const refreshToken = localStorage.getItem('admin_refresh_token')
   if (!refreshToken) return false
   try {
-    const resp = await axios.post('/api/admin/refresh', { refreshToken })
-    if (resp.data?.code === 0 && resp.data.data?.token) {
-      localStorage.setItem('admin_token', resp.data.data.token)
-      if (resp.data.data.refreshToken) {
-        localStorage.setItem('admin_refresh_token', resp.data.data.refreshToken)
+    const resp = await request.post('/admin/refresh', { refreshToken })
+    if (resp?.code === 0 && resp.data?.token) {
+      localStorage.setItem('admin_token', resp.data.token)
+      if (resp.data.refreshToken) {
+        localStorage.setItem('admin_refresh_token', resp.data.refreshToken)
       }
       return true
     }

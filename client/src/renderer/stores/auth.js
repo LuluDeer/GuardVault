@@ -29,10 +29,10 @@ export const useAuthStore = defineStore('auth', () => {
     await api.setConfig({ serverUrl: url });
   }
 
-  async function login(username, password) {
+  async function login(username, password, totpCode) {
     loading.value = true;
     try {
-      const result = await api.login(username, password);
+      const result = await api.login(username, password, totpCode);
       if (result.code === 0) {
         user.value = result.data.user;
         tokenExpired.value = false;

@@ -3,6 +3,7 @@ import * as serviceService from '../services/service.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { parseOtpauthUri } from '../utils/otpauth.js';
+import { checkServiceDeptAccess } from '../middlewares/authorize.js';
 
 export async function listServices(request, reply) {
   const { page = 1, pageSize = 20, keyword, category, deptId, status } = request.query;
@@ -119,6 +120,10 @@ export async function updateService(request, reply) {
     return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
   }
 
+  if (!(await checkServiceDeptAccess(request, id))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门服务');
+  }
+
   const service = await serviceService.updateService(id, parsed.data);
 
   await writeLog({
@@ -142,6 +147,10 @@ export async function resetSecret(request, reply) {
     return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
   }
 
+  if (!(await checkServiceDeptAccess(request, id))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门服务');
+  }
+
   const result = await serviceService.resetSecret(id);
 
   await writeLog({
@@ -163,6 +172,10 @@ export async function deleteService(request, reply) {
   const existing = await serviceService.getService(id);
   if (!existing) {
     return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
+  }
+
+  if (!(await checkServiceDeptAccess(request, id))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门服务');
   }
 
   await serviceService.deleteService(id);

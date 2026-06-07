@@ -39,6 +39,10 @@ sudo ./scripts/deploy.sh install
 sudo cp server/.env.example /opt/totp/server/.env
 sudo -u totp nano /opt/totp/server/.env
 
+# 数据库初始化（首次部署必须执行）
+cd /opt/totp/server
+sudo -u totp npx prisma db deploy
+
 # 启动
 sudo systemctl start totp-server
 sudo systemctl start totp-webadmin

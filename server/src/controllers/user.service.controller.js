@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import * as grantService from '../services/grant.service.js';
 import * as serviceService from '../services/service.service.js';
 import { writeLog } from '../services/log.service.js';
@@ -81,12 +82,15 @@ export async function getServiceDetail(request, reply) {
 }
 
 export async function reportCopy(request, reply) {
-  const schema = { accountId: request.body.accountId };
-  if (!schema.accountId) {
-    return fail(reply, ErrorCode.PARAM_ERROR, '缺少参数');
+  const schema = z.object({
+    accountId: z.number().int().positive(),
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败');
   }
 
-  const id = parseInt(schema.accountId, 10);
+  const id = parsed.data.accountId;
   const accessibleIds = await grantService.getUserAccessibleServiceIds(request.user.id);
   if (!accessibleIds.includes(id)) {
     return fail(reply, ErrorCode.FORBIDDEN, '无权限');

@@ -4,13 +4,16 @@ import bcrypt from 'bcryptjs';
 /**
  * 获取用户列表（分页）
  */
-export async function listUsers({ page = 1, pageSize = 20, keyword, status }) {
+export async function listUsers({ page = 1, pageSize = 20, keyword, status, deptId }) {
   const where = {};
   if (keyword) {
     where.username = { contains: keyword };
   }
   if (status !== undefined && status !== null && status !== '') {
     where.status = Number(status);
+  }
+  if (deptId !== undefined && deptId !== null && deptId !== '') {
+    where.deptId = Number(deptId);
   }
   // 只返回普通用户
   where.role = 'user';

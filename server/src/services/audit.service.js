@@ -10,7 +10,16 @@ export async function getServiceViewStats({ startDate, endDate, deptId } = {}) {
   }
 
   if (deptId) {
-    where.targetAccount = { deptId: Number(deptId) };
+    const accounts = await prisma.serviceAccount.findMany({
+      where: { deptId: Number(deptId) },
+      select: { id: true },
+    });
+    const accountIds = accounts.map(a => a.id);
+    if (accountIds.length > 0) {
+      where.targetAccountId = { in: accountIds };
+    } else {
+      return [];
+    }
   }
 
   const logs = await prisma.systemLog.findMany({

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { findUserById, verifyPassword, updateUser } from '../services/user.service.js';
 import { revokeToken } from '../services/auth.service.js';
+import { revokeUserRefreshTokens } from '../services/refresh-token.service.js';
 import { writeLog } from '../services/log.service.js';
 import { validatePassword } from '../utils/password-strength.js';
 import { success, fail, ErrorCode } from '../utils/response.js';

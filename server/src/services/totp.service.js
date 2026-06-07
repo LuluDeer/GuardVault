@@ -1,6 +1,6 @@
 import { prisma } from '../utils/prisma.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
-import { generateSecret, generateCode } from '../utils/totp.js';
+import { generateSecret, generateCode, verifyCode } from '../utils/totp.js';
 
 /**
  * 为用户开通2FA（生成密钥并加密入库）

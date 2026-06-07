@@ -3,18 +3,23 @@ import * as userService from '../services/user.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { validatePassword } from '../utils/password-strength.js';
+import { checkUserDeptAccess } from '../middlewares/authorize.js';
 
 /**
  * 获取用户列表
  */
 export async function listUsers(request, reply) {
   const { page = 1, pageSize = 20, keyword, status } = request.query;
-  const result = await userService.listUsers({
+  const params = {
     page: Number(page),
     pageSize: Number(pageSize),
     keyword,
     status,
-  });
+  };
+  if (request.user.role === 'dept_admin' && request.user.deptId) {
+    params.deptId = request.user.deptId;
+  }
+  const result = await userService.listUsers(params);
   return success(reply, result);
 }
 
@@ -82,6 +87,10 @@ export async function updateUser(request, reply) {
     return fail(reply, ErrorCode.USER_NOT_FOUND, '用户不存在');
   }
 
+  if (!(await checkUserDeptAccess(request, id))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
+  }
+
   await userService.updateUser(id, parsed.data);
 
   const actionDesc = parsed.data.password ? `重置用户 ${target.username} 密码` :
@@ -105,6 +114,10 @@ export async function deleteUser(request, reply) {
   const target = await userService.findUserById(id);
   if (!target) {
     return fail(reply, ErrorCode.USER_NOT_FOUND, '用户不存在');
+  }
+
+  if (!(await checkUserDeptAccess(request, id))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门用户');
   }
 
   await userService.deleteUser(id);

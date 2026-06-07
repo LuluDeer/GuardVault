@@ -3,6 +3,14 @@ import { z } from 'zod';
 import { success as ok, fail, ErrorCode } from '../utils/response.js';
 import * as favoriteService from '../services/favorite.service.js';
 import { writeLog } from '../services/log.service.js';
+import { prisma } from '../utils/prisma.js';
+
+async function checkGrantAccess(userId, accountId) {
+  const grant = await prisma.accountGrant.findUnique({
+    where: { userId_accountId: { userId, accountId } },
+  });
+  return !!grant;
+}
 
 const addSchema = z.object({ accountId: z.number().int().positive() });
 const removeSchema = z.object({ accountId: z.number().int().positive() });
@@ -42,6 +50,11 @@ export async function remove(request, reply) {
   const userId = request.user.id;
   const parsed = removeSchema.safeParse(request.body);
   if (!parsed.success) return fail(reply, ErrorCode.PARAM_ERROR, parsed.error.errors[0]?.message);
+  
+  if (!(await checkGrantAccess(userId, parsed.data.accountId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无此服务访问权限');
+  }
+  
   const result = await favoriteService.removeFavorite(userId, parsed.data.accountId);
   if (result.count > 0) {
     writeLog({
@@ -62,6 +75,13 @@ export async function reorder(request, reply) {
   const userId = request.user.id;
   const parsed = reorderSchema.safeParse(request.body);
   if (!parsed.success) return fail(reply, ErrorCode.PARAM_ERROR, parsed.error.errors[0]?.message);
+  
+  for (const accountId of parsed.data.orderedAccountIds) {
+    if (!(await checkGrantAccess(userId, accountId))) {
+      return fail(reply, ErrorCode.FORBIDDEN, '无此服务访问权限');
+    }
+  }
+  
   const result = await favoriteService.reorderFavorites(userId, parsed.data.orderedAccountIds);
   writeLog({
     operatorId: userId,

@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setConfig: (config) => ipcRenderer.invoke('config:set', config),
 
   // --- 鉴权（主进程持有 token） ---
-  login: (username, password) => ipcRenderer.invoke('auth:login', { username, password }),
+  login: (username, password, totpCode) => ipcRenderer.invoke('auth:login', { username, password, totpCode }),
   logout: () => ipcRenderer.invoke('auth:logout'),
   getUser: () => ipcRenderer.invoke('auth:user'),
   hasToken: () => ipcRenderer.invoke('auth:hasToken'),
