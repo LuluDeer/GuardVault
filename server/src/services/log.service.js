@@ -1,5 +1,83 @@
 import { prisma } from '../utils/prisma.js';
 
+// 日志保留天数（可在 system_config 表的 log_retention_days 中覆盖）
+const DEFAULT_LOG_RETENTION_DAYS = 90;
+// 单次最多删除条数（防长事务/锁表）
+const CLEANUP_BATCH_SIZE = 5000;
+
+/**
+ * 清理过期日志
+ *  - 默认保留 90 天
+ *  - 优先读 system_config.log_retention_days，缺省回落到默认
+ *  - 循环分批删除，避免一次 DELETE 锁大量行
+ * @returns {Promise<{deleted: number, beforeDays: number, cutoff: Date}>}
+ */
+export async function cleanExpiredLogs(retentionDays) {
+  let days = Number(retentionDays) || 0;
+  if (!days) {
+    // 从 DB 读配置
+    const cfg = await prisma.systemConfig.findUnique({
+      where: { configKey: 'log_retention_days' },
+    });
+    days = cfg ? Number(cfg.configValue) : DEFAULT_LOG_RETENTION_DAYS;
+  }
+  days = Math.max(1, Math.min(3650, days)); // 1 天 ~ 10 年
+
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  let totalDeleted = 0;
+
+  // 分批删除直到影响行数为 0
+  // 使用 deleteMany + where，避免一次性大删除
+  while (true) {
+    const res = await prisma.systemLog.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    totalDeleted += res.count;
+    if (res.count < CLEANUP_BATCH_SIZE) break;
+  }
+
+  return { deleted: totalDeleted, retentionDays: days, cutoff };
+}
+
+/**
+ * 启动日志清理定时任务
+ *  - 默认每天凌晨 3 点执行一次
+ *  - 通过 LOG_CLEANUP_CRON_HOUR 环境变量自定义（0-23）
+ */
+let cleanupTimer = null;
+export function startLogCleanupTask(logger = console) {
+  if (cleanupTimer) return; // 防止重复启动
+  const hour = Number(process.env.LOG_CLEANUP_CRON_HOUR ?? 3);
+  const safeHour = Math.max(0, Math.min(23, isNaN(hour) ? 3 : hour));
+
+  function schedule() {
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(safeHour, 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    const ms = next.getTime() - now.getTime();
+    cleanupTimer = setTimeout(async () => {
+      try {
+        const result = await cleanExpiredLogs();
+        logger.info?.(`[log-cleanup] deleted ${result.deleted} logs older than ${result.retentionDays} days`);
+      } catch (err) {
+        logger.error?.(`[log-cleanup] failed: ${err.message}`);
+      } finally {
+        schedule();
+      }
+    }, ms);
+  }
+  schedule();
+  logger.info?.(`[log-cleanup] scheduled daily at ${safeHour}:00`);
+}
+
+export function stopLogCleanupTask() {
+  if (cleanupTimer) {
+    clearTimeout(cleanupTimer);
+    cleanupTimer = null;
+  }
+}
+
 /**
  * 写入操作日志
  * @param {object} params

@@ -38,6 +38,7 @@
             v-for="(service, index) in items"
             :key="service.id"
             class="service-card"
+            :class="{ 'is-favorite': isFavorite(service.id) }"
             @click="handleClick(service)"
             @mouseenter="handleHover(service.id)"
           >
@@ -58,6 +59,16 @@
               <div v-else class="code-placeholder">点击获取</div>
             </div>
             <div class="service-action">
+              <button
+                class="fav-btn"
+                :class="{ active: isFavorite(service.id) }"
+                :title="isFavorite(service.id) ? '取消收藏' : '收藏到快捷键'"
+                @click.stop="handleToggleFav(service)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" :fill="isFavorite(service.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </button>
               <button class="copy-btn" @click.stop="handleCopy(service)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -65,7 +76,9 @@
                 </svg>
               </button>
             </div>
-            <div v-if="index < 9" class="shortcut-badge">{{ index + 1 }}</div>
+            <div v-if="shortcutIndex(service.id) >= 0" class="shortcut-badge fav-key">
+              Ctrl+{{ shortcutIndex(service.id) + 1 }}
+            </div>
           </div>
         </div>
       </div>
@@ -181,6 +194,13 @@ function handleKeydown(e) {
   if (e.ctrlKey && !e.shiftKey && !e.altKey) {
     const num = parseInt(e.key, 10);
     if (num >= 1 && num <= 9) {
+      // 优先匹配收藏快捷键映射（按 sort 升序的前 9 个）
+      const favs = serviceStore.favoriteServices;
+      if (favs.length >= num) {
+        handleCopy(favs[num - 1]);
+        return;
+      }
+      // 未配收藏时回落到服务列表顺序
       const allServices = serviceStore.services;
       if (allServices[num - 1]) {
         handleCopy(allServices[num - 1]);
@@ -192,8 +212,38 @@ function handleKeydown(e) {
   }
 }
 
+function isFavorite(id) {
+  return serviceStore.isFavorite(id);
+}
+
+// 返回该服务在收藏序列中的位置（0-based），未收藏返回 -1
+function shortcutIndex(id) {
+  const favs = serviceStore.favoriteServices;
+  const idx = favs.findIndex(s => s.id === id);
+  return idx >= 0 && idx < 9 ? idx : -1;
+}
+
+async function handleToggleFav(service) {
+  if (isFavorite(service.id)) {
+    const ok = await serviceStore.removeFavorite(service.id);
+    if (ok) {
+      toastMessage.value = `已取消收藏 ${service.name}`;
+      showToast.value = true;
+      setTimeout(() => { showToast.value = false; }, 1500);
+    }
+  } else {
+    const ok = await serviceStore.addFavorite(service.id);
+    if (ok) {
+      toastMessage.value = `已收藏 ${service.name}（按 Ctrl+${shortcutIndex(service.id) + 1} 快速复制）`;
+      showToast.value = true;
+      setTimeout(() => { showToast.value = false; }, 2000);
+    }
+  }
+}
+
 onMounted(async () => {
   await serviceStore.fetchServices();
+  await serviceStore.fetchFavorites();
   window.addEventListener('keydown', handleKeydown);
 });
 
@@ -417,6 +467,46 @@ watch(searchQuery, () => {
 
 .service-action {
   flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.fav-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.fav-btn:hover {
+  background: rgba(241,196,15,0.2);
+  color: #f1c40f;
+}
+
+.fav-btn.active {
+  background: rgba(241,196,15,0.25);
+  color: #f1c40f;
+}
+
+.service-card.is-favorite {
+  background: rgba(241,196,15,0.08);
+  border-left: 3px solid #f1c40f;
+}
+
+.shortcut-badge.fav-key {
+  font-size: 9px;
+  background: rgba(241,196,15,0.25);
+  color: #f1c40f;
+  width: auto;
+  padding: 0 5px;
 }
 
 .copy-btn {

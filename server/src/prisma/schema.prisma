@@ -44,6 +44,8 @@ model SystemUser {
   grants          AccountGrant[]   @relation("GrantUser")
   grantedByMe     AccountGrant[]   @relation("GrantOperator")
   createdServices ServiceAccount[] @relation("ServiceCreator")
+  favorites       AccountFavorite[]
+  refreshTokens   RefreshToken[]
 
   @@index([deptId])
   @@index([role])
@@ -85,9 +87,10 @@ model ServiceAccount {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  department Department     @relation(fields: [deptId], references: [id], onDelete: Restrict)
-  createdBy  SystemUser     @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  department Department       @relation(fields: [deptId], references: [id], onDelete: Restrict)
+  createdBy  SystemUser       @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
   grants     AccountGrant[]
+  favorites  AccountFavorite[]
 
   @@index([deptId])
   @@index([category])
@@ -112,6 +115,22 @@ model AccountGrant {
   @@index([userId])
   @@index([accountId])
   @@map("account_grant")
+}
+
+// 用户收藏服务（决定客户端 Ctrl+1~9 快捷键顺序）
+model AccountFavorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  accountId Int      @map("account_id")
+  sort      Int      @default(0) @map("sort_order") // 越小越靠前（=1,2,3... 对应 Ctrl+1, Ctrl+2...）
+  pinnedAt  DateTime @default(now()) @map("pinned_at")
+
+  user    SystemUser     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account ServiceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, accountId])
+  @@index([userId, sort])
+  @@map("account_favorite")
 }
 
 model SystemLog {
@@ -156,4 +175,43 @@ model TokenBlacklist {
 
   @@index([expireAt])
   @@map("token_blacklist")
+}
+
+model IpBlock {
+  id        Int      @id @default(autoincrement())
+  ip        String   @unique @db.VarChar(45)
+  reason    String   @db.VarChar(256)
+  expireAt  BigInt   @map("expire_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([expireAt])
+  @@map("ip_block")
+}
+
+model LoginAttempt {
+  id            Int      @id @default(autoincrement())
+  ip            String   @db.VarChar(45)
+  username      String   @db.VarChar(32)
+  resource      String   @db.VarChar(32)
+  attemptNumber Int      @map("attempt_number")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([ip])
+  @@index([createdAt])
+  @@map("login_attempt")
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique @db.VarChar(128)
+  userId    Int      @map("user_id")
+  expireAt  DateTime @map("expire_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expireAt])
+  @@map("refresh_token")
 }

@@ -16,6 +16,12 @@ export const api = {
   getServiceCode: (id) => window.electronAPI.getServiceCode(id),
   reportCopy: (accountId) => window.electronAPI.reportCopy(accountId),
 
+  // 收藏（通过通用 request 走，无需新 IPC）
+  listFavorites: () => window.electronAPI.request({ method: 'GET', url: '/api/user/favorite/list' }),
+  addFavorite: (accountId) => window.electronAPI.request({ method: 'POST', url: '/api/user/favorite/add', data: { accountId } }),
+  removeFavorite: (accountId) => window.electronAPI.request({ method: 'POST', url: '/api/user/favorite/remove', data: { accountId } }),
+  reorderFavorites: (orderedAccountIds) => window.electronAPI.request({ method: 'POST', url: '/api/user/favorite/reorder', data: { orderedAccountIds } }),
+
   request,
 
   getConfig: () => window.electronAPI.getConfig(),

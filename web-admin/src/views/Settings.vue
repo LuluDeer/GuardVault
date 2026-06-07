@@ -50,26 +50,45 @@
       </el-form-item>
     </el-form>
   </el-card>
+
+  <el-card style="margin-top:16px">
+    <template #header>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:16px;font-weight:600">Audit Log Retention</span>
+      </div>
+    </template>
+    <el-form label-width="240px" style="max-width:580px">
+      <el-form-item label="Log Retention (days)">
+        <el-input-number v-model="form.log_retention_days" :min="1" :max="3650" controls-position="right" />
+        <el-button type="primary" size="small" style="margin-left:12px" :loading="savingKey==='log_retention_days'" @click="save('log_retention_days', form.log_retention_days)">{{ t('common.save') }}</el-button>
+        <el-button type="warning" size="small" style="margin-left:8px" :loading="cleaning" @click="handleCleanup">Cleanup Now</el-button>
+        <div class="form-hint">Logs older than this will be auto-deleted daily at 3 AM. Manual cleanup deletes immediately.</div>
+      </el-form-item>
+    </el-form>
+  </el-card>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { getSettings, updateSetting } from '@/api/settings'
 import { changeAdminPassword } from '@/api/auth'
+import { request } from '@/api/index'
 import { useI18n } from '@/i18n'
 
 const { t } = useI18n()
 const router = useRouter()
 const loading = ref(false)
 const savingKey = ref('')
+const cleaning = ref(false)
 const form = reactive({
   token_expire_hours: 2,
   admin_session_timeout: 30,
   login_fail_max: 5,
   login_lock_minutes: 10,
+  log_retention_days: 90,
 })
 
 async function fetchSettings() {
@@ -81,6 +100,7 @@ async function fetchSettings() {
     form.admin_session_timeout = Number(cfg.admin_session_timeout) || 30
     form.login_fail_max = Number(cfg.login_fail_max) || 5
     form.login_lock_minutes = Number(cfg.login_lock_minutes) || 10
+    form.log_retention_days = Number(cfg.log_retention_days) || 90
   } finally { loading.value = false }
 }
 
@@ -90,6 +110,25 @@ async function save(key, value) {
     await updateSetting(key, String(value))
     ElMessage.success(t('common.success'))
   } finally { savingKey.value = '' }
+}
+
+async function handleCleanup() {
+  try {
+    await ElMessageBox.confirm(
+      `This will permanently delete all system logs older than ${form.log_retention_days} days. Continue?`,
+      t('common.warning'),
+      { type: 'warning' }
+    )
+    cleaning.value = true
+    const res = await request({ method: 'POST', url: '/api/admin/log/cleanup', data: {} })
+    ElMessage.success(`Deleted ${res.data.deleted} log(s), retention=${res.data.retentionDays} days`)
+  } catch (e) {
+    if (e !== 'cancel') {
+      // 失败提示已由拦截器给出
+    }
+  } finally {
+    cleaning.value = false
+  }
 }
 
 // ===== 修改管理员密码 =====

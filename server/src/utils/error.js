@@ -1,4 +1,4 @@
-// 统一错误处理：捕获 zod / Prisma / 自定义业务错误
+// 统一错误处理：捕获 zod / Prisma / 限流 / 自定义业务错误
 // controller 内已用 fail() 返回的不会被这个捕获
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
@@ -18,6 +18,14 @@ export function errorHandler(err, request, reply) {
     return reply.code(400).send({
       code: ErrorCode.PARAM_ERROR,
       message: err.errors?.[0]?.message || '参数校验失败',
+      data: null,
+    });
+  }
+  // 限流（@fastify/rate-limit 抛出 FST_ERR_TOO_MANY_REQUESTS）
+  if (err.statusCode === 429 || err.code === 'FST_ERR_TOO_MANY_REQUESTS') {
+    return reply.code(429).send({
+      code: 4291,
+      message: err.message || '请求过于频繁',
       data: null,
     });
   }

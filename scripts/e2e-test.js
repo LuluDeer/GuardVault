@@ -240,6 +240,55 @@ async function main() {
   const isForbidden = deniedRes.body?.code === 1006 || deniedRes.body?.code === 1001;
   assert(isForbidden, `无权限访问应被拒 (http=${deniedRes.status}, code=${deniedRes.body?.code}, msg=${deniedRes.body?.message})`);
 
+  // 14. 重新授权 + 服务收藏（favorites）
+  console.log('\n[14] 服务收藏 (Favorites)');
+  const reGrantRes = await call('POST', '/api/admin/grant/grant', { userId, accountId: serviceId }, adminToken);
+  assert(reGrantRes.status === 200, '重新授权');
+
+  // 添加收藏
+  const addFavRes = await call('POST', '/api/user/favorite/add', { accountId: serviceId }, userToken);
+  assert(addFavRes.status === 200 && addFavRes.body.code === 0, `添加收藏成功 (${JSON.stringify(addFavRes.body).slice(0,80)})`);
+
+  // 重复添加应幂等
+  const addFavRes2 = await call('POST', '/api/user/favorite/add', { accountId: serviceId }, userToken);
+  assert(addFavRes2.status === 200, '重复添加收藏应幂等成功');
+
+  // 列表
+  const listFavRes = await call('GET', '/api/user/favorite/list', null, userToken);
+  assert(listFavRes.status === 200 && Array.isArray(listFavRes.body.data), '收藏列表 200');
+  const hasThis = listFavRes.body.data?.some(f => f.accountId === serviceId);
+  assert(hasThis, `收藏列表中包含 #${serviceId}`);
+
+  // 重排（把同一个放进去至少 1 条）
+  const reorderRes = await call('POST', '/api/user/favorite/reorder', { orderedAccountIds: [serviceId] }, userToken);
+  assert(reorderRes.status === 200, `重排收藏成功 (count=${reorderRes.body.data?.count})`);
+
+  // 取消收藏
+  const rmFavRes = await call('POST', '/api/user/favorite/remove', { accountId: serviceId }, userToken);
+  assert(rmFavRes.status === 200, '取消收藏成功');
+
+  const listFavRes2 = await call('GET', '/api/user/favorite/list', null, userToken);
+  const stillHas = listFavRes2.body.data?.some(f => f.accountId === serviceId);
+  assert(!stillHas, '取消后列表为空');
+
+  // 15. 日志清理（手动触发 + 默认 90 天 + 不应影响近期日志）
+  console.log('\n[15] 审计日志自动清理');
+  // retentionDays=3650（10 年）应清 0 条
+  const cleanupRes = await call('POST', '/api/admin/log/cleanup', { retentionDays: 3650 }, adminToken);
+  assert(cleanupRes.status === 200 && cleanupRes.body.code === 0, 'cleanup 返回 200');
+  assert(typeof cleanupRes.body.data?.retentionDays === 'number', `retentionDays 是数字: ${cleanupRes.body.data?.retentionDays}`);
+  assert(typeof cleanupRes.body.data?.deleted === 'number', `deleted 是数字: ${cleanupRes.body.data?.deleted}`);
+
+  // 不传参数走默认（system_config.log_retention_days 或 90）
+  const cleanupRes2 = await call('POST', '/api/admin/log/cleanup', {}, adminToken);
+  assert(cleanupRes2.status === 200 && cleanupRes2.body.code === 0, 'cleanup 默认参数 200');
+
+  // 验证刚刚的 LOG_CLEANUP 日志被记录
+  const listRes = await call('GET', '/api/admin/log/list?actionType=LOG_CLEANUP&pageSize=5', null, adminToken);
+  assert(listRes.status === 200, '查询 LOG_CLEANUP 日志 200');
+  const hasCleanupLog = listRes.body.data?.list?.some(l => l.actionType === 'LOG_CLEANUP');
+  assert(hasCleanupLog, 'LOG_CLEANUP 日志已写入');
+
   // 总结
   console.log(`\n=== 测试结果 ===`);
   console.log(`通过: ${totalPass}`);

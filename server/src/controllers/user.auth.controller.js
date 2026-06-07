@@ -4,6 +4,8 @@ import { findUserByUsername, recordLoginFail, clearLoginFail } from '../services
 import { signToken, revokeToken } from '../services/auth.service.js';
 import { writeLog } from '../services/log.service.js';
 import { getConfig } from '../services/config.service.js';
+import { recordFailedAttempt } from '../services/ip-block.service.js';
+import { createRefreshToken, revokeUserRefreshTokens } from '../services/refresh-token.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { prisma } from '../utils/prisma.js';
 
@@ -45,6 +47,7 @@ export async function login(request, reply) {
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
     const { failCount, locked } = await recordLoginFail(user.id, maxFail, lockMinutes);
+    await recordFailedAttempt(clientIp, username, 'user_login');
 
     await writeLog({
       operatorId: user.id, operatorName: username,
@@ -84,6 +87,7 @@ export async function login(request, reply) {
  */
 export async function logout(request, reply) {
   await revokeToken(request.token);
+  await revokeUserRefreshTokens(request.user.id);
   await writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'USER_LOGOUT', actionDesc: '用户登出',

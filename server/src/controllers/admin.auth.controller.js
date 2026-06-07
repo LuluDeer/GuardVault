@@ -4,6 +4,9 @@ import { findUserByUsername, createUser, clearLoginFail, recordLoginFail } from 
 import { signToken, revokeToken } from '../services/auth.service.js';
 import { writeLog } from '../services/log.service.js';
 import { getConfig, initDefaultConfig } from '../services/config.service.js';
+import { recordFailedAttempt } from '../services/ip-block.service.js';
+import { validatePassword } from '../utils/password-strength.js';
+import { createRefreshToken, revokeUserRefreshTokens } from '../services/refresh-token.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { prisma } from '../utils/prisma.js';
 
@@ -50,6 +53,7 @@ export async function login(request, reply) {
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
     const { failCount, locked } = await recordLoginFail(user.id, maxFail, lockMinutes);
+    await recordFailedAttempt(clientIp, username, 'admin_login');
 
     await writeLog({
       operatorId: user.id, operatorName: username,
@@ -65,6 +69,8 @@ export async function login(request, reply) {
 
   // 登录成功
   await clearLoginFail(user.id, clientIp);
+  await revokeUserRefreshTokens(user.id);
+  const { token: refreshToken, expireAt: refreshExpireAt } = await createRefreshToken(user.id);
 
   const expireSeconds = parseInt(process.env.JWT_ADMIN_EXPIRE || '1800', 10);
   const token = signToken({ id: user.id, username: user.username, role: user.role }, expireSeconds);
@@ -76,7 +82,7 @@ export async function login(request, reply) {
     clientIp, userAgent, result: 1,
   });
 
-  return success(reply, { token, expireAt });
+  return success(reply, { token, expireAt, refreshToken, refreshExpireAt: refreshExpireAt.toISOString() });
 }
 
 /**
@@ -84,6 +90,7 @@ export async function login(request, reply) {
  */
 export async function logout(request, reply) {
   await revokeToken(request.token);
+  await revokeUserRefreshTokens(request.user.id);
   await writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'ADMIN_LOGOUT', actionDesc: '管理员登出',
@@ -103,11 +110,16 @@ export async function initSystem(request, reply) {
 
   const schema = z.object({
     username: z.string().min(4).max(32).regex(/^[a-zA-Z0-9_]+$/),
-    password: z.string().min(8).max(128).regex(/^(?=.*[a-zA-Z])(?=.*[0-9])/),
+    password: z.string().min(8).max(128),
   });
   const parsed = schema.safeParse(request.body);
   if (!parsed.success) {
-    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败：用户名4-32位字母数字下划线，密码8位以上含字母和数字');
+    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败：用户名4-32位字母数字下划线，密码8位以上');
+  }
+
+  const passwordCheck = validatePassword(parsed.data.password);
+  if (!passwordCheck.valid) {
+    return fail(reply, ErrorCode.PARAM_ERROR, passwordCheck.message);
   }
 
   const hash = await bcrypt.hash(parsed.data.password, 12);
@@ -132,18 +144,21 @@ export async function initSystem(request, reply) {
  */
 const changePasswordSchema = z.object({
   oldPassword: z.string().min(1).max(128),
-  newPassword: z.string().min(8).max(128).regex(/^(?=.*[a-zA-Z])(?=.*[0-9])/,
-    '密码必须8位以上且同时包含字母和数字'),
+  newPassword: z.string().min(8).max(128),
 });
 
 export async function changePassword(request, reply) {
   const parsed = changePasswordSchema.safeParse(request.body);
   if (!parsed.success) {
-    return fail(reply, ErrorCode.PARAM_ERROR,
-      parsed.error.errors?.[0]?.message || '参数校验失败');
+    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败：旧密码必填，新密码8位以上');
   }
   const { oldPassword, newPassword } = parsed.data;
   const adminId = request.user.id;
+
+  const passwordCheck = validatePassword(newPassword);
+  if (!passwordCheck.valid) {
+    return fail(reply, ErrorCode.PARAM_ERROR, passwordCheck.message);
+  }
 
   const user = await prisma.systemUser.findUnique({ where: { id: adminId } });
   if (!user) {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { findUserById, verifyPassword, updateUser } from '../services/user.service.js';
 import { revokeToken } from '../services/auth.service.js';
 import { writeLog } from '../services/log.service.js';
+import { validatePassword } from '../utils/password-strength.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 
 /**
@@ -10,11 +11,16 @@ import { success, fail, ErrorCode } from '../utils/response.js';
 export async function changePassword(request, reply) {
   const schema = z.object({
     oldPassword: z.string().min(1).max(128),
-    newPassword: z.string().min(8).max(128).regex(/^(?=.*[a-zA-Z])(?=.*[0-9])/, '新密码需包含字母和数字'),
+    newPassword: z.string().min(8).max(128),
   });
   const parsed = schema.safeParse(request.body);
   if (!parsed.success) {
-    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败：新密码需8位以上且包含字母和数字');
+    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败：旧密码必填，新密码8位以上');
+  }
+
+  const passwordCheck = validatePassword(parsed.data.newPassword);
+  if (!passwordCheck.valid) {
+    return fail(reply, ErrorCode.PARAM_ERROR, passwordCheck.message);
   }
 
   const user = await findUserById(request.user.id);

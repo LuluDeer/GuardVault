@@ -8,11 +8,30 @@ export const useServiceStore = defineStore('service', () => {
   const lastFetch = ref(0);
   const codeCache = ref({});
   const countdownTimers = ref({});
+  // 收藏：Map<accountId, { sort, pinnedAt }>
+  const favorites = ref(new Map());
+  const lastFavoriteFetch = ref(0);
 
   const categories = computed(() => {
     const cats = new Set(services.value.map(s => s.category));
     return Array.from(cats);
   });
+
+  // 收藏的 ID 集合（O(1) 查找）
+  const favoriteIds = computed(() => new Set(favorites.value.keys()));
+
+  // 已收藏的服务列表（按 sort 升序）
+  const favoriteServices = computed(() => {
+    const ids = Array.from(favorites.value.keys());
+    return ids
+      .map(id => services.value.find(s => s.id === id))
+      .filter(Boolean);
+  });
+
+  // 是否已收藏某个服务
+  function isFavorite(id) {
+    return favorites.value.has(id);
+  }
 
   const groupedServices = computed(() => {
     const groups = {};
@@ -38,6 +57,87 @@ export const useServiceStore = defineStore('service', () => {
       console.error('Failed to fetch services:', err);
     } finally {
       loading.value = false;
+    }
+  }
+
+  async function fetchFavorites() {
+    const now = Date.now();
+    // 30 秒内不重复拉取
+    if (now - lastFavoriteFetch.value < 30000 && favorites.value.size > 0) return;
+    try {
+      const result = await api.listFavorites();
+      if (result.code === 0 && Array.isArray(result.data)) {
+        const map = new Map();
+        for (const f of result.data) {
+          map.set(f.accountId, { sort: f.sort, pinnedAt: f.pinnedAt });
+        }
+        favorites.value = map;
+        lastFavoriteFetch.value = now;
+      }
+    } catch (err) {
+      console.error('Failed to fetch favorites:', err);
+    }
+  }
+
+  // 添加收藏（乐观更新 + 失败回滚）
+  async function addFavorite(id) {
+    const before = new Map(favorites.value);
+    // 乐观：暂时放到末尾
+    const nextSort = Math.max(0, ...Array.from(favorites.value.values()).map(v => v.sort)) + 1;
+    favorites.value.set(id, { sort: nextSort, pinnedAt: new Date().toISOString() });
+    try {
+      const result = await api.addFavorite(id);
+      if (result.code !== 0) {
+        favorites.value = before;
+        return false;
+      }
+      // 成功后重新拉取一次以获取准确 sort
+      lastFavoriteFetch.value = 0;
+      await fetchFavorites();
+      return true;
+    } catch {
+      favorites.value = before;
+      return false;
+    }
+  }
+
+  // 取消收藏
+  async function removeFavorite(id) {
+    const before = new Map(favorites.value);
+    favorites.value.delete(id);
+    try {
+      const result = await api.removeFavorite(id);
+      if (result.code !== 0) {
+        favorites.value = before;
+        return false;
+      }
+      return true;
+    } catch {
+      favorites.value = before;
+      return false;
+    }
+  }
+
+  // 重排（orderedAccountIds 按用户期望顺序）
+  async function reorderFavorites(orderedAccountIds) {
+    const before = new Map(favorites.value);
+    const map = new Map();
+    orderedAccountIds.forEach((id, idx) => {
+      if (before.has(id)) {
+        map.set(id, { ...before.get(id), sort: idx + 1 });
+      }
+    });
+    favorites.value = map;
+    try {
+      const result = await api.reorderFavorites(orderedAccountIds);
+      if (result.code !== 0) {
+        favorites.value = before;
+        return false;
+      }
+      return true;
+    } catch {
+      favorites.value = before;
+      return false;
     }
   }
 
@@ -116,7 +216,15 @@ export const useServiceStore = defineStore('service', () => {
     loading,
     categories,
     groupedServices,
+    favorites,
+    favoriteIds,
+    favoriteServices,
+    isFavorite,
     fetchServices,
+    fetchFavorites,
+    addFavorite,
+    removeFavorite,
+    reorderFavorites,
     getCode,
     cacheCode,
     getCachedCode,

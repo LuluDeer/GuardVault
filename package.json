@@ -1,5 +1,9 @@
 {
   "devDependencies": {
     "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "@fastify/swagger": "8.15.0",
+    "@fastify/swagger-ui": "5.2.6"
   }
 }

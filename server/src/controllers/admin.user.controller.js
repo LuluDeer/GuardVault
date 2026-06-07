@@ -2,6 +2,7 @@ import { z } from 'zod';
 import * as userService from '../services/user.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
+import { validatePassword } from '../utils/password-strength.js';
 
 /**
  * 获取用户列表
@@ -23,14 +24,18 @@ export async function listUsers(request, reply) {
 export async function createUser(request, reply) {
   const schema = z.object({
     username: z.string().min(4).max(32).regex(/^[a-zA-Z0-9_]+$/),
-    password: z.string().min(8).max(128).regex(/^(?=.*[a-zA-Z])(?=.*[0-9])/),
+    password: z.string().min(8).max(128),
   });
   const parsed = schema.safeParse(request.body);
   if (!parsed.success) {
-    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败：用户名4-32位字母数字下划线，密码8位以上含字母和数字');
+    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败：用户名4-32位字母数字下划线，密码8位以上');
   }
 
-  // 检查用户名重复
+  const passwordCheck = validatePassword(parsed.data.password);
+  if (!passwordCheck.valid) {
+    return fail(reply, ErrorCode.PARAM_ERROR, passwordCheck.message);
+  }
+
   const existing = await userService.findUserByUsername(parsed.data.username);
   if (existing) {
     return fail(reply, ErrorCode.USERNAME_EXISTS, '用户名已存在');
@@ -54,7 +59,7 @@ export async function createUser(request, reply) {
 export async function updateUser(request, reply) {
   const id = parseInt(request.params.id, 10);
   const schema = z.object({
-    password: z.string().min(8).max(128).regex(/^(?=.*[a-zA-Z])(?=.*[0-9])/).optional(),
+    password: z.string().min(8).max(128).optional(),
     status: z.number().int().min(0).max(1).optional(),
   }).refine(data => data.password !== undefined || data.status !== undefined, {
     message: '至少提供一个更新字段',
@@ -63,6 +68,13 @@ export async function updateUser(request, reply) {
   const parsed = schema.safeParse(request.body);
   if (!parsed.success) {
     return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败');
+  }
+
+  if (parsed.data.password) {
+    const passwordCheck = validatePassword(parsed.data.password);
+    if (!passwordCheck.valid) {
+      return fail(reply, ErrorCode.PARAM_ERROR, passwordCheck.message);
+    }
   }
 
   const target = await userService.findUserById(id);

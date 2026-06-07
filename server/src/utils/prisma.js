@@ -1,12 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 
-// 进程级 Prisma 单例，避免每个 service / controller 各 new 一个连接池
 const globalForPrisma = globalThis;
+
+const connectionLimit = parseInt(process.env.DB_CONNECTION_LIMIT || '10');
+const idleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '60');
 
 export const prisma =
   globalForPrisma.__prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === 'production' ? ['warn', 'error'] : ['query', 'warn', 'error'],
+    datasourceUrl: process.env.DATABASE_URL,
   });
 
 if (process.env.NODE_ENV !== 'production') {
