@@ -72,10 +72,10 @@ await fastify.register(swagger, {
   openapi: {
     openapi: '3.0.3',
     info: {
-      title: 'TOTP Centralized 2FA Safe API',
-      description: '局域网内集中式 2FA 验证码管理后端 API。所有非 /api/admin/login、/api/user/login、/health、/ready 接口均需在 Authorization 头中传 `Bearer <token>`。',
+      title: 'GuardVault 2FA Safe API',
+      description: 'GuardVault 企业级集中式 2FA 验证码管理后端 API。所有非 /api/admin/login、/api/user/login、/health、/ready 接口均需在 Authorization 头中传 `Bearer <token>`。',
       version: '1.0.0',
-      contact: { name: 'TOTP Safe Team' },
+      contact: { name: 'GuardVault Team' },
     },
     servers: [
       { url: 'http://127.0.0.1:3000', description: '本机开发' },

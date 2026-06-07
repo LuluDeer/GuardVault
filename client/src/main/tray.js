@@ -17,13 +17,13 @@ function createTray() {
     tray = new Tray(iconPath);
   } catch {
     if (process.platform === 'linux') {
-      tray = new Tray('/usr/share/pixmaps/totp-client.png');
+      tray = new Tray('/usr/share/pixmaps/guardvault-client.png');
     } else {
       return null;
     }
   }
   rebuildMenu();
-  tray.setToolTip('TOTP 客户端');
+  tray.setToolTip('GuardVault');
   tray.on('click', () => showWindow());
   tray.on('double-click', () => showWindow());
   return tray;

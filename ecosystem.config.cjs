@@ -2,11 +2,11 @@
 // 使用：pm2 start ecosystem.config.cjs
 //       pm2 stop ecosystem.config.cjs
 //       pm2 reload ecosystem.config.cjs
-//       pm2 logs totp-server
+//       pm2 logs guardvault-server
 module.exports = {
   apps: [
     {
-      name: 'totp-server',
+      name: 'guardvault-server',
       script: 'src/app.js',
       cwd: __dirname + '/server',
       instances: 1,

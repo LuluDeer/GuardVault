@@ -1,5 +1,5 @@
-appId: com.example.totp-client
-productName: TOTP客户端
+appId: com.example.guardvault
+productName: GuardVault
 directories:
   output: dist
 files:

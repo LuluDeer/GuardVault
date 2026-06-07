@@ -1,0 +1,31 @@
+[Unit]
+Description=GuardVault Authentication Server
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=guardvault
+Group=guardvault
+WorkingDirectory=/opt/guardvault/server
+EnvironmentFile=/opt/guardvault/.env
+ExecStart=/usr/bin/node src/app.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/guardvault/server.log
+StandardError=append:/var/log/guardvault/server-error.log
+SyslogIdentifier=guardvault-server
+
+# 资源限制
+LimitNOFILE=65536
+MemoryMax=512M
+
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/guardvault/uploads /opt/guardvault/logs /var/log/guardvault
+
+[Install]
+WantedBy=multi-user.target

@@ -1,7 +1,7 @@
 {
-  "name": "totp-server",
+  "name": "guardvault-server",
   "version": "1.0.0",
-  "description": "局域网TOTP验证码服务端",
+  "description": "GuardVault 企业级2FA服务端",
   "type": "module",
   "main": "src/app.js",
   "scripts": {

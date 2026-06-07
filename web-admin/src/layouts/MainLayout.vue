@@ -1,7 +1,7 @@
 <template>
   <el-container style="height:100vh">
     <el-aside :width="sidebarWidth" class="sidebar">
-      <div class="logo">TOTP Admin</div>
+      <div class="logo">GuardVault</div>
       <el-menu
         :default-active="activeMenu"
         :background-color="menuBg"

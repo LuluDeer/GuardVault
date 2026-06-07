@@ -18,31 +18,31 @@ log_err() { echo -e "${RED}[ERROR]${NC} $*"; }
 install() {
   if [[ $EUID -ne 0 ]]; then log_err "请使用 root 用户执行 install"; exit 1; fi
   log_info "复制 systemd 单元..."
-  cp "$SCRIPT_DIR/totp-server.service" /etc/systemd/system/
-  cp "$SCRIPT_DIR/totp-webadmin.service" /etc/systemd/system/
+  cp "$SCRIPT_DIR/guardvault-server.service" /etc/systemd/system/
+  cp "$SCRIPT_DIR/guardvault-webadmin.service" /etc/systemd/system/
   systemctl daemon-reload
-  systemctl enable totp-server.service totp-webadmin.service
-  log_info "已启用，请确认 /opt/totp 部署完整后执行：systemctl start totp-server"
+  systemctl enable guardvault-server.service guardvault-webadmin.service
+  log_info "已启用，请确认 /opt/guardvault 部署完整后执行：systemctl start guardvault-server"
 }
 
 uninstall() {
   if [[ $EUID -ne 0 ]]; then log_err "请使用 root 用户执行 uninstall"; exit 1; fi
-  systemctl stop totp-server totp-webadmin || true
-  systemctl disable totp-server totp-webadmin || true
-  rm -f /etc/systemd/system/totp-server.service
-  rm -f /etc/systemd/system/totp-webadmin.service
+  systemctl stop guardvault-server guardvault-webadmin || true
+  systemctl disable guardvault-server guardvault-webadmin || true
+  rm -f /etc/systemd/system/guardvault-server.service
+  rm -f /etc/systemd/system/guardvault-webadmin.service
   systemctl daemon-reload
   log_info "已卸载"
 }
 
 logs() {
-  journalctl -u totp-server -u totp-webadmin -f
+  journalctl -u guardvault-server -u guardvault-webadmin -f
 }
 
 status() {
-  systemctl status totp-server --no-pager || true
+  systemctl status guardvault-server --no-pager || true
   echo "---"
-  systemctl status totp-webadmin --no-pager || true
+  systemctl status guardvault-webadmin --no-pager || true
 }
 
 case "${1:-}" in

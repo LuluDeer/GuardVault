@@ -1,0 +1,18 @@
+[Unit]
+Description=GuardVault Web Admin
+After=network.target guardvault-server.service
+Wants=guardvault-server.service
+
+[Service]
+Type=simple
+User=guardvault
+Group=guardvault
+WorkingDirectory=/opt/guardvault/web-admin
+ExecStart=/usr/bin/npm run preview -- --host 0.0.0.0 --port 5174
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/var/log/guardvault/web-admin.log
+StandardError=append:/var/log/guardvault/web-admin-error.log
+
+[Install]
+WantedBy=multi-user.target

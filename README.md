@@ -1,6 +1,6 @@
-# 局域网 TOTP 认证系统
+# GuardVault - 企业级 2FA 集中管理系统
 
-一个基于 Electron + Vue 3 的局域网 TOTP（Time-based One-Time Password）双因素认证系统。
+一个基于 Electron + Vue 3 的企业级双因素认证（TOTP/2FA）集中管理系统。
 包含 PC 客户端、Web 管理后台、Fastify 后端服务三端。
 
 ## 项目定位：中心化 2FA 保险柜
