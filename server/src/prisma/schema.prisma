@@ -51,6 +51,8 @@ model SystemUser {
 
   @@index([deptId])
   @@index([role])
+  @@index([status])
+  @@index([username])
   @@map("system_user")
 }
 
@@ -156,6 +158,7 @@ model SystemLog {
   @@index([operatorId])
   @@index([actionType])
   @@index([targetAccountId])
+  @@index([createdAt, operatorId])
   @@map("system_log")
 }
 

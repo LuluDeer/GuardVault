@@ -50,7 +50,7 @@ export async function requestReset(request, reply) {
 export async function resetPassword(request, reply) {
   const schema = z.object({
     resetToken: z.string().min(1),
-    newPassword: z.string().min(6).max(128),
+    newPassword: z.string().min(8).max(128),
   });
   const parsed = schema.safeParse(request.body);
   if (!parsed.success) {

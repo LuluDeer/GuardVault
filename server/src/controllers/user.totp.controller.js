@@ -2,6 +2,8 @@ import * as totpService from '../services/totp.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { z } from 'zod';
+import { decrypt } from '../utils/crypto.js';
+import { prisma } from '../utils/prisma.js';
 
 /**
  * 用户获取个人动态码
@@ -54,4 +56,30 @@ export async function verifyTotp(request, reply) {
     }
     throw err;
   }
+}
+
+export async function getMySecret(request, reply) {
+  const userId = request.user.id;
+  const key = await totpService.getUserKey(userId);
+  if (!key || key.isEnable !== 1) {
+    return fail(reply, ErrorCode.TOTP_NOT_ENABLED, '2FA权限未开通，请联系管理员');
+  }
+
+  const secret = decrypt(key.encryptedSecret);
+  const otpauthUrl = `otpauth://totp/TOTPClient:${encodeURIComponent(request.user.username)}?secret=${secret}&issuer=TOTPClient&period=30&digits=6&algorithm=SHA1`;
+
+  await writeLog({
+    operatorId: userId, operatorName: request.user.username,
+    actionType: 'USER_VIEW_SECRET',
+    actionDesc: '用户查看自己的TOTP密钥',
+    clientIp: request.ip, result: 1,
+  });
+
+  return success(reply, {
+    userId,
+    username: request.user.username,
+    secret,
+    otpauthUrl,
+    boundAt: key.resetTime,
+  });
 }

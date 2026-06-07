@@ -626,6 +626,7 @@ export default async function adminRoutes(fastify) {
     '/api/admin/refresh',
     route('Admin-Auth', '刷新 Token', {
       public: true,
+      routeOpts: { preHandler: [ipBlockCheck] },
       schema: {
         body: {
           type: 'object',

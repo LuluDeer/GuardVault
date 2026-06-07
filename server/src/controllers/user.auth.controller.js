@@ -74,13 +74,6 @@ export async function login(request, reply) {
   }
 
   if (totpEnabled && totpCode) {
-    const { token: refreshToken, expireAt: refreshExpireAt } = await createRefreshToken(user.id);
-
-    const tokenHours = parseInt(await getConfig('token_expire_hours') || '2', 10);
-    const expireSeconds = tokenHours * 3600;
-    const token = signToken({ id: user.id, username: user.username, role: user.role }, expireSeconds);
-    const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
-
     const totpValid = await verifyTotp(user.id, totpCode);
     if (!totpValid) {
       await writeLog({
@@ -90,6 +83,15 @@ export async function login(request, reply) {
       });
       return fail(reply, ErrorCode.WRONG_CREDENTIALS, 'TOTP验证码错误');
     }
+
+    await clearLoginFail(user.id, clientIp);
+    await revokeUserRefreshTokens(user.id);
+    const { token: refreshToken, expireAt: refreshExpireAt } = await createRefreshToken(user.id);
+
+    const tokenHours = parseInt(await getConfig('token_expire_hours') || '2', 10);
+    const expireSeconds = tokenHours * 3600;
+    const token = signToken({ id: user.id, username: user.username, role: user.role }, expireSeconds);
+    const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
 
     await writeLog({
       operatorId: user.id, operatorName: username,

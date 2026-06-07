@@ -41,8 +41,31 @@ request.interceptors.response.use(
   (response) => {
     const res = response.data
     if (res.code !== 0) {
-      ElMessage.error(res.message || '请求失败')
-      return Promise.reject(new Error(res.message || '请求失败'))
+      const errorMessages = {
+        1001: res.message || '参数校验失败',
+        1002: res.message || '用户名或密码错误',
+        1003: res.message || '账号已被禁用',
+        1004: res.message || '账号已被锁定',
+        1005: '登录已过期，请重新登录',
+        1006: 'Token已被吊销，请重新登录',
+        1007: res.message || '无权限访问',
+        1008: res.message || '用户不存在',
+        1009: res.message || '2FA权限未开通',
+        1010: res.message || '用户名已存在',
+        1011: res.message || '原密码错误',
+        5000: res.message || '服务器内部错误',
+      }
+      const msg = errorMessages[res.code] || res.message || '请求失败'
+      ElMessage.error(msg)
+      if (res.code === 1005 || res.code === 1006) {
+        localStorage.removeItem('admin_token')
+        localStorage.removeItem('admin_username')
+        localStorage.removeItem('admin_refresh_token')
+        localStorage.removeItem('admin_token_expire_at')
+        localStorage.removeItem('admin_role')
+        setTimeout(() => { window.location.href = '/login' }, 1500)
+      }
+      return Promise.reject(new Error(msg))
     }
     return res
   },

@@ -46,13 +46,14 @@ export default async function userRoutes(fastify) {
     '/api/user/register',
     route('User-Auth', '用户注册', {
       public: true,
+      routeOpts: { preHandler: [ipBlockCheck] },
       schema: {
         body: {
           type: 'object',
           required: ['username', 'password'],
           properties: {
-            username: { type: 'string', minLength: 3, maxLength: 32 },
-            password: { type: 'string', minLength: 6, maxLength: 128 },
+            username: { type: 'string', minLength: 4, maxLength: 32 },
+            password: { type: 'string', minLength: 8, maxLength: 128 },
             deptId: { type: 'integer' },
           },
         },
@@ -65,6 +66,7 @@ export default async function userRoutes(fastify) {
     '/api/user/password/reset-request',
     route('User-Auth', '请求找回密码', {
       public: true,
+      routeOpts: { preHandler: [ipBlockCheck] },
       schema: {
         body: {
           type: 'object',
@@ -80,13 +82,14 @@ export default async function userRoutes(fastify) {
     '/api/user/password/reset',
     route('User-Auth', '重置密码', {
       public: true,
+      routeOpts: { preHandler: [ipBlockCheck] },
       schema: {
         body: {
           type: 'object',
           required: ['resetToken', 'newPassword'],
           properties: {
             resetToken: { type: 'string' },
-            newPassword: { type: 'string', minLength: 6, maxLength: 128 },
+            newPassword: { type: 'string', minLength: 8, maxLength: 128 },
           },
         },
       },
@@ -121,6 +124,14 @@ export default async function userRoutes(fastify) {
       },
     }),
     userTotpController.verifyTotp,
+  );
+
+  fastify.get(
+    '/api/user/totp/secret',
+    route('User-TOTP', '查看自己的 TOTP 密钥（用于重新绑定）', {
+      preHandler: userPreHandler,
+    }),
+    userTotpController.getMySecret,
   );
 
   fastify.put(
@@ -217,6 +228,7 @@ export default async function userRoutes(fastify) {
     '/api/user/refresh',
     route('User-Auth', '刷新 Token', {
       public: true,
+      routeOpts: { preHandler: [ipBlockCheck] },
       schema: {
         body: {
           type: 'object',

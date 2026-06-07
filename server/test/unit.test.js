@@ -297,7 +297,7 @@ describe('响应工具', () => {
     expect(ErrorCode.SUCCESS).toBe(0);
     expect(ErrorCode.PARAM_ERROR).toBe(1001);
     expect(ErrorCode.TOKEN_INVALID).toBe(1005);
-    expect(ErrorCode.FORBIDDEN).toBe(1006);
+    expect(ErrorCode.FORBIDDEN).toBe(1007);
   });
 });
 
