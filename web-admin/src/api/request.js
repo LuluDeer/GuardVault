@@ -17,6 +17,26 @@ request.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
+let isRefreshing = false
+
+async function doRefreshToken() {
+  const refreshToken = localStorage.getItem('admin_refresh_token')
+  if (!refreshToken) return false
+  try {
+    const resp = await axios.post('/api/admin/refresh', { refreshToken })
+    if (resp.data?.code === 0 && resp.data.data?.token) {
+      localStorage.setItem('admin_token', resp.data.data.token)
+      if (resp.data.data.refreshToken) {
+        localStorage.setItem('admin_refresh_token', resp.data.data.refreshToken)
+      }
+      return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 request.interceptors.response.use(
   (response) => {
     const res = response.data
@@ -26,10 +46,31 @@ request.interceptors.response.use(
     }
     return res
   },
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config
+    if (error.response?.data?.code === 1005 && !originalRequest._retry) {
+      originalRequest._retry = true
+      if (!isRefreshing) {
+        isRefreshing = true
+        const success = await doRefreshToken()
+        isRefreshing = false
+        if (success) {
+          originalRequest.headers['Authorization'] = `Bearer ${localStorage.getItem('admin_token')}`
+          return request(originalRequest)
+        }
+      }
+      localStorage.removeItem('admin_token')
+      localStorage.removeItem('admin_username')
+      localStorage.removeItem('admin_refresh_token')
+      localStorage.removeItem('admin_token_expire_at')
+      window.location.href = '/login'
+      return Promise.reject(error)
+    }
     if (error.response?.status === 401) {
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_username')
+      localStorage.removeItem('admin_refresh_token')
+      localStorage.removeItem('admin_token_expire_at')
       window.location.href = '/login'
     } else {
       ElMessage.error(error.response?.data?.message || error.message || '网络错误')
@@ -38,5 +79,26 @@ request.interceptors.response.use(
   }
 )
 
+let refreshTimer = null
+export function startTokenRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer)
+  refreshTimer = setInterval(async () => {
+    const expireAt = localStorage.getItem('admin_token_expire_at')
+    if (expireAt) {
+      const expireTime = new Date(expireAt).getTime()
+      const now = Date.now()
+      if (expireTime - now < 5 * 60 * 1000) {
+        await doRefreshToken()
+      }
+    }
+  }, 60 * 1000)
+}
+
+export function stopTokenRefresh() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+}
+
 export default request
-export { axios }

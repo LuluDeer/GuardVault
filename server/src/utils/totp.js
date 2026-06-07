@@ -1,14 +1,8 @@
 import { totp } from 'otplib';
 import crypto from 'node:crypto';
 
-// RFC6238标准配置
 totp.options = { digits: 6, step: 30, algorithm: 'sha1' };
 
-/**
- * 生成当前TOTP动态码
- * @param {string} base32Secret - Base32编码的密钥明文
- * @returns {{ code: string, remainSeconds: number }}
- */
 export function generateCode(base32Secret) {
   const code = totp.generate(base32Secret);
   const epoch = Math.floor(Date.now() / 1000);
@@ -16,21 +10,19 @@ export function generateCode(base32Secret) {
   return { code, remainSeconds };
 }
 
-/**
- * 生成新的TOTP密钥（20字节，Base32编码）
- * @returns {string} Base32编码的密钥
- */
 export function generateSecret() {
-  // 20字节 = 160bit，符合RFC4226标准
   const rawBytes = crypto.randomBytes(20);
   return base32Encode(rawBytes);
 }
 
-/**
- * Base32编码（RFC4648）
- * @param {Buffer} buffer
- * @returns {string}
- */
+export function verifyCode(base32Secret, code) {
+  try {
+    return totp.verify({ secret: base32Secret, token: code });
+  } catch {
+    return false;
+  }
+}
+
 function base32Encode(buffer) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
   let bits = 0;

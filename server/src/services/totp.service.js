@@ -56,17 +56,23 @@ export async function resetTotp(userId) {
  * 批量重置密钥（最多50人）
  */
 export async function batchResetTotp(userIds) {
-  let successCount = 0;
-  let failCount = 0;
-  for (const userId of userIds.slice(0, 50)) {
-    try {
-      await resetTotp(userId);
-      successCount++;
-    } catch {
-      failCount++;
-    }
-  }
-  return { successCount, failCount };
+  const limitedIds = userIds.slice(0, 50);
+  const results = await prisma.$transaction(
+    limitedIds.map(userId => {
+      const secret = generateSecret();
+      const encryptedSecret = encrypt(secret);
+      return prisma.userTotpKey.update({
+        where: { userId },
+        data: {
+          encryptedSecret,
+          resetTime: new Date(),
+          resetCount: { increment: 1 },
+        },
+      });
+    }),
+    { timeout: 60000 },
+  );
+  return { successCount: results.length, failCount: limitedIds.length - results.length };
 }
 
 /**
@@ -105,4 +111,13 @@ export async function getTotpStatus(userId) {
  */
 export async function getUserKey(userId) {
   return prisma.userTotpKey.findUnique({ where: { userId } });
+}
+
+export async function verifyTotp(userId, code) {
+  const key = await prisma.userTotpKey.findUnique({ where: { userId } });
+  if (!key || key.isEnable !== 1) {
+    throw new Error('TOTP_NOT_ENABLED');
+  }
+  const secret = decrypt(key.encryptedSecret);
+  return verifyCode(secret, code);
 }

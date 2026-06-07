@@ -9,6 +9,7 @@ const { app } = require('electron');
 
 const TOKEN_FILE = 'token.bin';
 const USER_FILE = 'user.json';
+const REFRESH_TOKEN_FILE = 'refresh_token.bin';
 
 function getPath(name) {
   return path.join(app.getPath('userData'), name);
@@ -74,4 +75,42 @@ function clearUser() {
   try { fs.unlinkSync(getPath(USER_FILE)); } catch {}
 }
 
-module.exports = { saveToken, readToken, clearToken, saveUser, readUser, clearUser };
+// ===== Refresh Token 加密存取 =====
+function saveRefreshToken(token) {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) {
+      console.warn('[RefreshToken] safeStorage 不可用，降级明文存储');
+      fs.writeFileSync(getPath(REFRESH_TOKEN_FILE), token);
+      return true;
+    }
+    const encrypted = safeStorage.encryptString(token);
+    fs.writeFileSync(getPath(REFRESH_TOKEN_FILE), encrypted);
+    return true;
+  } catch (err) {
+    console.error('[RefreshToken] save error:', err.message);
+    return false;
+  }
+}
+
+function readRefreshToken() {
+  try {
+    const buf = fs.readFileSync(getPath(REFRESH_TOKEN_FILE));
+    if (!buf.length) return null;
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        return safeStorage.decryptString(buf);
+      } catch {
+        return buf.toString();
+      }
+    }
+    return buf.toString();
+  } catch {
+    return null;
+  }
+}
+
+function clearRefreshToken() {
+  try { fs.unlinkSync(getPath(REFRESH_TOKEN_FILE)); } catch {}
+}
+
+module.exports = { saveToken, readToken, clearToken, saveUser, readUser, clearUser, saveRefreshToken, readRefreshToken, clearRefreshToken };

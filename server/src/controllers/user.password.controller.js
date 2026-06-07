@@ -36,8 +36,8 @@ export async function changePassword(request, reply) {
 
   await updateUser(user.id, { password: parsed.data.newPassword });
 
-  // 修改密码后吊销当前Token
   await revokeToken(request.token);
+  await revokeUserRefreshTokens(user.id);
 
   await writeLog({
     operatorId: user.id, operatorName: user.username,

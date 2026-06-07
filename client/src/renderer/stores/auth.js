@@ -36,11 +36,11 @@ export const useAuthStore = defineStore('auth', () => {
       if (result.code === 0) {
         user.value = result.data.user;
         tokenExpired.value = false;
-        return { ok: true };
+        return { ok: true, totpRequired: result.data.totpRequired, challengeToken: result.data.challengeToken };
       }
-      return { ok: false, message: result.message || '登录失败' };
+      return { ok: false, message: result.message || '登录失败', code: result.code };
     } catch (err) {
-      return { ok: false, message: '网络连接失败' };
+      return { ok: false, message: err.message || '网络连接失败' };
     } finally {
       loading.value = false;
     }

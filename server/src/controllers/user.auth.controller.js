@@ -6,22 +6,22 @@ import { writeLog } from '../services/log.service.js';
 import { getConfig } from '../services/config.service.js';
 import { recordFailedAttempt } from '../services/ip-block.service.js';
 import { createRefreshToken, revokeUserRefreshTokens } from '../services/refresh-token.service.js';
+import { createChallenge, validateChallenge, clearChallenge } from '../services/challenge.service.js';
+import { verifyTotp } from '../services/totp.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { prisma } from '../utils/prisma.js';
 
-/**
- * 用户登录
- */
 export async function login(request, reply) {
   const schema = z.object({
     username: z.string().min(1).max(32),
     password: z.string().min(1).max(128),
+    totpCode: z.string().length(6).optional(),
   });
   const parsed = schema.safeParse(request.body);
   if (!parsed.success) {
     return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败');
   }
-  const { username, password } = parsed.data;
+  const { username, password, totpCode } = parsed.data;
   const clientIp = request.ip;
   const userAgent = request.headers['user-agent'] || null;
 
@@ -35,7 +35,6 @@ export async function login(request, reply) {
     return fail(reply, ErrorCode.ACCOUNT_DISABLED, '账号已被禁用');
   }
 
-  // 从系统配置读取锁定参数
   const maxFail = parseInt(await getConfig('login_fail_max') || '5', 10);
   const lockMinutes = parseInt(await getConfig('login_lock_minutes') || '10', 10);
 
@@ -61,17 +60,54 @@ export async function login(request, reply) {
     return fail(reply, ErrorCode.WRONG_CREDENTIALS, `密码错误，还可尝试 ${remaining} 次`);
   }
 
-  await clearLoginFail(user.id, clientIp);
+  const totpKey = await prisma.userTotpKey.findUnique({ where: { userId: user.id }, select: { isEnable: true } });
+  const totpEnabled = totpKey?.isEnable === 1;
 
-  // 从系统配置读取Token有效期
+  if (totpEnabled && !totpCode) {
+    const { challengeToken, expireAt: challengeExpireAt } = await createChallenge(user.id, username);
+    return success(reply, {
+      totpRequired: true,
+      challengeToken,
+      expireAt: challengeExpireAt.toISOString(),
+      message: '请输入TOTP动态验证码',
+    });
+  }
+
+  if (totpEnabled && totpCode) {
+    const { token: refreshToken, expireAt: refreshExpireAt } = await createRefreshToken(user.id);
+
+    const tokenHours = parseInt(await getConfig('token_expire_hours') || '2', 10);
+    const expireSeconds = tokenHours * 3600;
+    const token = signToken({ id: user.id, username: user.username, role: user.role }, expireSeconds);
+    const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
+
+    const totpValid = await verifyTotp(user.id, totpCode);
+    if (!totpValid) {
+      await writeLog({
+        operatorId: user.id, operatorName: username,
+        actionType: 'USER_LOGIN', actionDesc: '用户登录失败：TOTP验证失败',
+        clientIp, userAgent, result: 0, failReason: 'TOTP验证失败',
+      });
+      return fail(reply, ErrorCode.WRONG_CREDENTIALS, 'TOTP验证码错误');
+    }
+
+    await writeLog({
+      operatorId: user.id, operatorName: username,
+      actionType: 'USER_LOGIN', actionDesc: '用户登录成功',
+      clientIp, userAgent, result: 1,
+    });
+
+    return success(reply, { token, expireAt, totpEnabled, refreshToken, refreshExpireAt: refreshExpireAt.toISOString() });
+  }
+
+  await clearLoginFail(user.id, clientIp);
+  await revokeUserRefreshTokens(user.id);
+  const { token: refreshToken, expireAt: refreshExpireAt } = await createRefreshToken(user.id);
+
   const tokenHours = parseInt(await getConfig('token_expire_hours') || '2', 10);
   const expireSeconds = tokenHours * 3600;
   const token = signToken({ id: user.id, username: user.username, role: user.role }, expireSeconds);
   const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
-
-  // 检查TOTP状态
-  const totpKey = await prisma.userTotpKey.findUnique({ where: { userId: user.id }, select: { isEnable: true } });
-  const totpEnabled = totpKey?.isEnable === 1;
 
   await writeLog({
     operatorId: user.id, operatorName: username,
@@ -79,12 +115,9 @@ export async function login(request, reply) {
     clientIp, userAgent, result: 1,
   });
 
-  return success(reply, { token, expireAt, totpEnabled });
+  return success(reply, { token, expireAt, totpEnabled, refreshToken, refreshExpireAt: refreshExpireAt.toISOString() });
 }
 
-/**
- * 用户登出
- */
 export async function logout(request, reply) {
   await revokeToken(request.token);
   await revokeUserRefreshTokens(request.user.id);

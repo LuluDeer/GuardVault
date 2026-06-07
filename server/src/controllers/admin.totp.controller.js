@@ -5,7 +5,7 @@ import { success, fail, ErrorCode } from '../utils/response.js';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
 import { decrypt } from '../utils/crypto.js';
-import { getUserKey } from '../services/totp.service.js';
+import bcrypt from 'bcryptjs';
 
 /**
  * 开通2FA
@@ -123,12 +123,37 @@ export async function getUserCode(request, reply) {
  * 返回原始 base32 secret 和 otpauth URL（Google Authenticator 兼容）
  */
 export async function getUserSecret(request, reply) {
+  const schema = z.object({
+    adminPassword: z.string().min(1).max(128),
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '请输入管理员密码');
+  }
+
   const userId = parseInt(request.params.userId, 10);
   if (!userId) return fail(reply, ErrorCode.PARAM_ERROR, '用户ID无效');
 
-  const key = await getUserKey(userId);
+  const admin = await prisma.systemUser.findUnique({
+    where: { id: request.user.id },
+    select: { password: true, username: true },
+  });
+
+  const passwordValid = await bcrypt.compare(parsed.data.adminPassword, admin.password);
+  if (!passwordValid) {
+    await writeLog({
+      operatorId: request.user.id, operatorName: request.user.username,
+      targetUserId: userId,
+      actionType: 'ADMIN_VIEW_SECRET',
+      actionDesc: `管理员查看用户TOTP密钥失败：密码验证失败`,
+      clientIp: request.ip, result: 0, failReason: '密码验证失败',
+    });
+    return fail(reply, ErrorCode.WRONG_CREDENTIALS, '管理员密码错误');
+  }
+
+  const key = await totpService.getUserKey(userId);
   if (!key || key.isEnable !== 1) {
-    return fail(reply, ErrorCode.TOTP_NOT_BOUND, '该用户尚未绑定TOTP');
+    return fail(reply, ErrorCode.TOTP_NOT_ENABLED, '该用户尚未绑定TOTP');
   }
 
   const secret = decrypt(key.encryptedSecret);

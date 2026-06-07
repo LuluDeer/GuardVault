@@ -19,6 +19,12 @@
                autocomplete="current-password" @keyup.enter="handleLogin" />
       </div>
 
+      <div v-if="showTotpInput" class="form-group">
+        <label>TOTP 验证码</label>
+        <input v-model="totpCode" type="text" placeholder="请输入6位动态验证码"
+               maxlength="6" @keyup.enter="handleLogin" />
+      </div>
+
       <div class="checkbox-group">
         <label class="checkbox">
           <input type="checkbox" v-model="rememberMe" />
@@ -48,6 +54,9 @@ const username = ref('');
 const password = ref('');
 const rememberMe = ref(false);
 const error = ref('');
+const showTotpInput = ref(false);
+const totpCode = ref('');
+const challengeToken = ref('');
 
 onMounted(() => {
   const saved = localStorage.getItem('saved_username');
@@ -58,15 +67,44 @@ onMounted(() => {
 });
 
 async function handleLogin() {
-  if (!username.value.trim() || !password.value) {
-    error.value = '请输入用户名和密码';
-    return;
+  error.value = '';
+
+  if (!showTotpInput.value) {
+    if (!username.value.trim() || !password.value) {
+      error.value = '请输入用户名和密码';
+      return;
+    }
+  } else {
+    if (!totpCode.value.trim()) {
+      error.value = '请输入TOTP验证码';
+      return;
+    }
+    if (totpCode.value.length !== 6) {
+      error.value = '验证码必须为6位数字';
+      return;
+    }
   }
-  const r = await auth.login(username.value.trim(), password.value);
+
+  const loginData = showTotpInput.value
+    ? { username: username.value.trim(), password: password.value, totpCode: totpCode.value }
+    : { username: username.value.trim(), password: password.value };
+
+  const r = await auth.login(loginData.username, loginData.password, loginData.totpCode);
   if (!r.ok) {
     error.value = r.message;
+    showTotpInput.value = false;
+    totpCode.value = '';
+    challengeToken.value = '';
     return;
   }
+
+  if (r.totpRequired) {
+    showTotpInput.value = true;
+    challengeToken.value = r.challengeToken;
+    error.value = '请输入TOTP动态验证码';
+    return;
+  }
+
   if (rememberMe.value) {
     localStorage.setItem('saved_username', username.value.trim());
   } else {

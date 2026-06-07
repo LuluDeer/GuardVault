@@ -46,6 +46,8 @@ model SystemUser {
   createdServices ServiceAccount[] @relation("ServiceCreator")
   favorites       AccountFavorite[]
   refreshTokens   RefreshToken[]
+  totpChallenge   TotpChallenge?
+  passwordResetToken PasswordResetToken?
 
   @@index([deptId])
   @@index([role])
@@ -214,4 +216,34 @@ model RefreshToken {
   @@index([userId])
   @@index([expireAt])
   @@map("refresh_token")
+}
+
+model TotpChallenge {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique @map("user_id")
+  username  String   @db.VarChar(32)
+  token     String   @db.VarChar(64)
+  expireAt  DateTime @map("expire_at")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expireAt])
+  @@map("totp_challenge")
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique @map("user_id")
+  username  String   @db.VarChar(32)
+  token     String   @unique @db.VarChar(64)
+  expireAt  DateTime @map("expire_at")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expireAt])
+  @@map("password_reset_token")
 }

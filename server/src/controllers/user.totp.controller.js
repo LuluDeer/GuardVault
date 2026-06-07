@@ -1,6 +1,7 @@
 import * as totpService from '../services/totp.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
+import { z } from 'zod';
 
 /**
  * 用户获取个人动态码
@@ -18,6 +19,35 @@ export async function getMyCode(request, reply) {
     });
 
     return success(reply, codeResult);
+  } catch (err) {
+    if (err.message === 'TOTP_NOT_ENABLED') {
+      return fail(reply, ErrorCode.TOTP_NOT_ENABLED, '2FA权限未开通，请联系管理员');
+    }
+    throw err;
+  }
+}
+
+export async function verifyTotp(request, reply) {
+  const schema = z.object({
+    code: z.string().length(6),
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '验证码必须为6位数字');
+  }
+
+  const userId = request.user.id;
+  try {
+    const valid = await totpService.verifyTotp(userId, parsed.data.code);
+
+    await writeLog({
+      operatorId: userId, operatorName: request.user.username,
+      actionType: 'USER_VERIFY_TOTP',
+      actionDesc: valid ? 'TOTP验证成功' : 'TOTP验证失败',
+      clientIp: request.ip, result: valid ? 1 : 0,
+    });
+
+    return success(reply, { valid });
   } catch (err) {
     if (err.message === 'TOTP_NOT_ENABLED') {
       return fail(reply, ErrorCode.TOTP_NOT_ENABLED, '2FA权限未开通，请联系管理员');

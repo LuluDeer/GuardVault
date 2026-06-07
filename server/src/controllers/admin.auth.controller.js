@@ -82,7 +82,7 @@ export async function login(request, reply) {
     clientIp, userAgent, result: 1,
   });
 
-  return success(reply, { token, expireAt, refreshToken, refreshExpireAt: refreshExpireAt.toISOString() });
+  return success(reply, { token, expireAt, role: user.role, refreshToken, refreshExpireAt: refreshExpireAt.toISOString() });
 }
 
 /**
@@ -178,8 +178,8 @@ export async function changePassword(request, reply) {
     data: { password: hash, failCount: 0, lockedUntil: null },
   });
 
-  // 吊销当前Token，强制重新登录
   await revokeToken(request.token);
+  await revokeUserRefreshTokens(adminId);
 
   await writeLog({
     operatorId: adminId, operatorName: request.user.username,

@@ -55,7 +55,13 @@ export function errorHandler(err, request, reply) {
       data: null,
     });
   }
-  // 其它未知错误
+  if (err.message === 'TOKEN_REVOKED') {
+    return reply.code(401).send({
+      code: ErrorCode.TOKEN_REVOKED,
+      message: 'Token已被吊销，请重新登录',
+      data: null,
+    });
+  }
   request.log.error({ err, url: request.url }, 'Unhandled error');
   return reply.code(500).send({
     code: ErrorCode.SERVER_ERROR,

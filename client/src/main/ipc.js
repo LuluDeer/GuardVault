@@ -30,32 +30,41 @@ function saveConfig(config) {
   }
 }
 
-const httpClient = axios.create({
+let httpClient = axios.create({
   baseURL: getConfig().serverUrl,
   timeout: 10000,
   validateStatus: () => true,
 });
 
-httpClient.interceptors.request.use((config) => {
-  const token = tokenStore.readToken();
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+function updateHttpClientBaseURL() {
+  httpClient = axios.create({
+    baseURL: getConfig().serverUrl,
+    timeout: 10000,
+    validateStatus: () => true,
+  });
+  httpClient.interceptors.request.use((config) => {
+    const token = tokenStore.readToken();
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  });
+  httpClient.interceptors.response.use((resp) => {
+    if (resp.data && resp.data.code === 1005) {
+      tokenStore.clearToken();
+      tokenStore.clearUser();
+      tokenStore.clearRefreshToken();
+      const { BrowserWindow } = require('electron');
+      BrowserWindow.getAllWindows().forEach(win => {
+        win.webContents.send('auth:expired');
+      });
+    }
+    return resp;
+  });
+}
 
-httpClient.interceptors.response.use((resp) => {
-  if (resp.data && resp.data.code === 1005) {
-    tokenStore.clearToken();
-    tokenStore.clearUser();
-    const { BrowserWindow } = require('electron');
-    BrowserWindow.getAllWindows().forEach(win => {
-      win.webContents.send('auth:expired');
-    });
-  }
-  return resp;
-});
+updateHttpClientBaseURL();
 
 async function doRequest({ method, url, data, params }) {
   const resp = await httpClient.request({ method, url, data, params });
@@ -86,6 +95,45 @@ function stopHeartbeat() {
   }
 }
 
+let tokenRefreshTimer = null;
+async function refreshToken() {
+  const refreshToken = tokenStore.readRefreshToken();
+  if (!refreshToken) return;
+  try {
+    const result = await doRequest({
+      method: 'POST',
+      url: '/api/user/refresh',
+      data: { refreshToken },
+    });
+    if (result.code === 0 && result.data?.token) {
+      tokenStore.saveToken(result.data.token);
+      if (result.data.refreshToken) {
+        tokenStore.saveRefreshToken(result.data.refreshToken);
+      }
+    }
+  } catch {
+    tokenStore.clearToken();
+    tokenStore.clearUser();
+    tokenStore.clearRefreshToken();
+    const { BrowserWindow } = require('electron');
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('auth:expired');
+    });
+  }
+}
+
+function startTokenRefresh(getWindow) {
+  if (tokenRefreshTimer) clearInterval(tokenRefreshTimer);
+  tokenRefreshTimer = setInterval(refreshToken, 60 * 60 * 1000);
+}
+
+function stopTokenRefresh() {
+  if (tokenRefreshTimer) {
+    clearInterval(tokenRefreshTimer);
+    tokenRefreshTimer = null;
+  }
+}
+
 let clipboardClearTimer = null;
 function clearClipboardDelayed(delay = 30000) {
   if (clipboardClearTimer) clearTimeout(clipboardClearTimer);
@@ -96,24 +144,34 @@ function clearClipboardDelayed(delay = 30000) {
 
 function registerIpc(getWindow) {
   ipcMain.handle('config:get', () => getConfig());
-  ipcMain.handle('config:set', (_, config) => saveConfig(config));
+  ipcMain.handle('config:set', (_, config) => {
+    const result = saveConfig(config);
+    updateHttpClientBaseURL();
+    return result;
+  });
 
-  ipcMain.handle('auth:login', async (_, { username, password }) => {
+  ipcMain.handle('auth:login', async (_, { username, password, totpCode }) => {
     const result = await doRequest({
       method: 'POST', url: '/api/user/login',
-      data: { username, password },
+      data: totpCode ? { username, password, totpCode } : { username, password },
     });
     if (result.code === 0 && result.data?.token) {
       tokenStore.saveToken(result.data.token);
       tokenStore.saveUser(result.data.user);
+      if (result.data.refreshToken) {
+        tokenStore.saveRefreshToken(result.data.refreshToken);
+      }
+      startTokenRefresh(getWindow);
     }
     return result;
   });
 
   ipcMain.handle('auth:logout', async () => {
+    stopTokenRefresh();
     const result = await doRequest({ method: 'POST', url: '/api/user/logout' });
     tokenStore.clearToken();
     tokenStore.clearUser();
+    tokenStore.clearRefreshToken();
     return result;
   });
 
@@ -132,8 +190,10 @@ function registerIpc(getWindow) {
       data: { oldPassword, newPassword },
     });
     if (result.code === 0) {
+      stopTokenRefresh();
       tokenStore.clearToken();
       tokenStore.clearUser();
+      tokenStore.clearRefreshToken();
     }
     return result;
   });
@@ -171,11 +231,15 @@ function registerIpc(getWindow) {
   });
 
   startHeartbeat(getWindow);
+
+  if (tokenStore.readToken()) {
+    startTokenRefresh(getWindow);
+  }
 }
 
 function initIpc(getWindow) {
   registerIpc(getWindow);
-  return { stopHeartbeat };
+  return { stopHeartbeat, stopTokenRefresh };
 }
 
 module.exports = { initIpc };

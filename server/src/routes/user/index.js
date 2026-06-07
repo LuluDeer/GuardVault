@@ -7,6 +7,8 @@ import * as userPasswordController from '../../controllers/user.password.control
 import * as userServiceController from '../../controllers/user.service.controller.js';
 import * as userFavoriteController from '../../controllers/user.favorite.controller.js';
 import * as refreshController from '../../controllers/admin.refresh.controller.js';
+import * as userRegisterController from '../../controllers/user.register.controller.js';
+import * as userPasswordResetController from '../../controllers/user.password-reset.controller.js';
 
 /**
  * 帮助函数：组装 Fastify routeOptions（带 OpenAPI schema + security）
@@ -40,6 +42,58 @@ export default async function userRoutes(fastify) {
     userAuthController.login,
   );
 
+  fastify.post(
+    '/api/user/register',
+    route('User-Auth', '用户注册', {
+      public: true,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['username', 'password'],
+          properties: {
+            username: { type: 'string', minLength: 3, maxLength: 32 },
+            password: { type: 'string', minLength: 6, maxLength: 128 },
+            deptId: { type: 'integer' },
+          },
+        },
+      },
+    }),
+    userRegisterController.register,
+  );
+
+  fastify.post(
+    '/api/user/password/reset-request',
+    route('User-Auth', '请求找回密码', {
+      public: true,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['username'],
+          properties: { username: { type: 'string', minLength: 1, maxLength: 32 } },
+        },
+      },
+    }),
+    userPasswordResetController.requestReset,
+  );
+
+  fastify.post(
+    '/api/user/password/reset',
+    route('User-Auth', '重置密码', {
+      public: true,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['resetToken', 'newPassword'],
+          properties: {
+            resetToken: { type: 'string' },
+            newPassword: { type: 'string', minLength: 6, maxLength: 128 },
+          },
+        },
+      },
+    }),
+    userPasswordResetController.resetPassword,
+  );
+
   const userPreHandler = [authenticate, authorize('user', 'dept_admin', 'super_admin')];
 
   fastify.post(
@@ -52,6 +106,21 @@ export default async function userRoutes(fastify) {
     '/api/user/totp/code',
     route('User-TOTP', '获取我自己的当前 TOTP 码', { preHandler: userPreHandler }),
     userTotpController.getMyCode,
+  );
+
+  fastify.post(
+    '/api/user/totp/verify',
+    route('User-TOTP', '验证 TOTP 动态码', {
+      preHandler: userPreHandler,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['code'],
+          properties: { code: { type: 'string', minLength: 6, maxLength: 6 } },
+        },
+      },
+    }),
+    userTotpController.verifyTotp,
   );
 
   fastify.put(

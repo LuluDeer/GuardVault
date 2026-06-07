@@ -3,7 +3,7 @@ export async function request(config) {
 }
 
 export const api = {
-  login: (username, password) => window.electronAPI.login(username, password),
+  login: (username, password, totpCode) => window.electronAPI.login(username, password, totpCode),
   logout: () => window.electronAPI.logout(),
   getUser: () => window.electronAPI.getUser(),
   hasToken: () => window.electronAPI.hasToken(),
