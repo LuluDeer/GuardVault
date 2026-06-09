@@ -3,25 +3,28 @@
   <el-card v-loading="loading">
     <template #header>
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:16px;font-weight:600">{{ t('settings.title') }}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <el-button :icon="ArrowLeft" circle size="small" @click="goBack" :title="t('common.back')" />
+          <span style="font-size:16px;font-weight:600">{{ t('settings.title') }}</span>
+        </div>
       </div>
     </template>
     <el-form label-width="200px" style="max-width:580px">
-      <el-divider content-position="left">Login Security</el-divider>
-      <el-form-item :label="`User ${t('login.login')} TTL (h)`">
+      <el-divider content-position="left">{{ t('settings.loginSecurity') }}</el-divider>
+      <el-form-item :label="t('settings.userLoginTtl')">
         <el-input-number v-model="form.token_expire_hours" :min="1" :max="168" controls-position="right" />
         <el-button type="primary" size="small" style="margin-left:12px" :loading="savingKey==='token_expire_hours'" @click="save('token_expire_hours', form.token_expire_hours)">{{ t('common.save') }}</el-button>
       </el-form-item>
-      <el-form-item :label="`Admin Session Timeout (min)`">
+      <el-form-item :label="t('settings.adminSessionTimeout')">
         <el-input-number v-model="form.admin_session_timeout" :min="5" :max="1440" controls-position="right" />
         <el-button type="primary" size="small" style="margin-left:12px" :loading="savingKey==='admin_session_timeout'" @click="save('admin_session_timeout', form.admin_session_timeout)">{{ t('common.save') }}</el-button>
       </el-form-item>
-      <el-divider content-position="left">Login Lockout</el-divider>
-      <el-form-item :label="`Max ${t('login.loginFailed')}`">
+      <el-divider content-position="left">{{ t('settings.loginLockout') }}</el-divider>
+      <el-form-item :label="t('settings.maxLoginFail')">
         <el-input-number v-model="form.login_fail_max" :min="1" :max="20" controls-position="right" />
         <el-button type="primary" size="small" style="margin-left:12px" :loading="savingKey==='login_fail_max'" @click="save('login_fail_max', form.login_fail_max)">{{ t('common.save') }}</el-button>
       </el-form-item>
-      <el-form-item :label="`Lockout Duration (min)`">
+      <el-form-item :label="t('settings.lockoutDuration')">
         <el-input-number v-model="form.login_lock_minutes" :min="1" :max="1440" controls-position="right" />
         <el-button type="primary" size="small" style="margin-left:12px" :loading="savingKey==='login_lock_minutes'" @click="save('login_lock_minutes', form.login_lock_minutes)">{{ t('common.save') }}</el-button>
       </el-form-item>
@@ -35,18 +38,18 @@
       </div>
     </template>
     <el-form :model="pwd" :rules="pwdRules" ref="pwdForm" label-width="160px" style="max-width:480px">
-      <el-form-item :label="`Old ${t('login.password')}`" prop="oldPassword">
+      <el-form-item :label="t('settings.oldPassword')" prop="oldPassword">
         <el-input v-model="pwd.oldPassword" type="password" show-password />
       </el-form-item>
-      <el-form-item :label="`New ${t('login.password')}`" prop="newPassword">
+      <el-form-item :label="t('settings.newPassword')" prop="newPassword">
         <el-input v-model="pwd.newPassword" type="password" show-password />
-        <div class="form-hint">≥8 chars, letters & digits</div>
+        <div class="form-hint">{{ t('settings.passwordHint') }}</div>
       </el-form-item>
-      <el-form-item label="Confirm" prop="confirmPassword">
+      <el-form-item :label="t('settings.confirmPassword')" prop="confirmPassword">
         <el-input v-model="pwd.confirmPassword" type="password" show-password />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" :loading="pwdSaving" @click="handleChangePassword">Change</el-button>
+        <el-button type="primary" :loading="pwdSaving" @click="handleChangePassword">{{ t('settings.changePassword') }}</el-button>
       </el-form-item>
     </el-form>
   </el-card>
@@ -54,15 +57,15 @@
   <el-card style="margin-top:16px">
     <template #header>
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:16px;font-weight:600">Audit Log Retention</span>
+        <span style="font-size:16px;font-weight:600">{{ t('settings.auditRetention') }}</span>
       </div>
     </template>
     <el-form label-width="240px" style="max-width:580px">
-      <el-form-item label="Log Retention (days)">
+      <el-form-item :label="t('settings.logRetention')">
         <el-input-number v-model="form.log_retention_days" :min="1" :max="3650" controls-position="right" />
         <el-button type="primary" size="small" style="margin-left:12px" :loading="savingKey==='log_retention_days'" @click="save('log_retention_days', form.log_retention_days)">{{ t('common.save') }}</el-button>
-        <el-button type="warning" size="small" style="margin-left:8px" :loading="cleaning" @click="handleCleanup">Cleanup Now</el-button>
-        <div class="form-hint">Logs older than this will be auto-deleted daily at 3 AM. Manual cleanup deletes immediately.</div>
+        <el-button type="warning" size="small" style="margin-left:8px" :loading="cleaning" @click="handleCleanup">{{ t('settings.cleanupNow') }}</el-button>
+        <div class="form-hint">{{ t('settings.logRetentionHint') }}</div>
       </el-form-item>
     </el-form>
   </el-card>
@@ -77,6 +80,7 @@ import { getSettings, updateSetting } from '@/api/settings'
 import { changeAdminPassword } from '@/api/auth'
 import { request } from '@/api/index'
 import { useI18n } from '@/i18n'
+import { ArrowLeft } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -90,6 +94,11 @@ const form = reactive({
   login_lock_minutes: 10,
   log_retention_days: 90,
 })
+
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.push('/dashboard')
+}
 
 async function fetchSettings() {
   loading.value = true

@@ -32,6 +32,14 @@ export function getCategories() {
   return request.get('/admin/service/categories')
 }
 
+export function addCategory(category) {
+  return request.post('/admin/service/category', { category })
+}
+
+export function deleteCategory(category) {
+  return request.delete('/admin/service/category', { params: { category } })
+}
+
 export function batchImport(data) {
   return request.post('/admin/service/batch-import', data)
 }

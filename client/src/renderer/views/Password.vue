@@ -47,10 +47,12 @@
 
 <script setup>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
 
 const auth = useAuthStore();
+const router = useRouter();
 const showSuccess = ref(false);
 const oldPassword = ref('');
 const newPassword = ref('');
@@ -77,9 +79,9 @@ async function handleSubmit() {
     if (result.code === 0) {
       showSuccess.value = true;
       // 主进程已清token，1.5秒后跳登录
-      setTimeout(() => {
-        auth.showPassword = false;
-        auth.user = null;
+      setTimeout(async () => {
+        await auth.logout();
+        router.replace('/login');
       }, 1500);
     } else {
       error.value = result.message || '修改失败';
@@ -92,7 +94,12 @@ async function handleSubmit() {
 }
 
 function goBack() {
-  auth.showPassword = false;
+  // 走真实路由返回（不要只翻 auth.showPassword，那是旧 flag 模式）
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    router.replace('/services');
+  }
 }
 </script>
 
@@ -100,9 +107,10 @@ function goBack() {
 .password-wrap {
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  /* 卡片靠上放（不再垂直居中），8vh 适配不同窗口高度 */
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
+  padding: 8vh 20px 20px;
 }
 
 .password-card {

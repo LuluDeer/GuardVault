@@ -1,9 +1,14 @@
 // Electron 主进程入口
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const { initIpc } = require('./ipc');
+const ipcConfig = require('./ipc-config');
+const ipcAuth = require('./ipc-auth');
+const ipcBusiness = require('./ipc-business');
+const ipcDiscovery = require('./ipc-discovery');
 const tray = require('./tray');
 const tokenStore = require('./token-store');
+const { getConfig } = require('./app-config');
+const windowManager = require('./window-manager');
 
 let mainWindow = null;
 
@@ -19,12 +24,19 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: false,
       preload: path.join(__dirname, '../preload/index.js'),
+      webSecurity: false,
     },
   });
+  windowManager.setMainWindow(mainWindow);
 
-  mainWindow.loadFile(path.join(__dirname, '../../index.html'));
+  // 加载页面：dev 走 vite dev server（npm run dev），prod 走构建产物
+  if (process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
+  }
   mainWindow.setMenu(null);
 
   mainWindow.on('close', (event) => {
@@ -38,8 +50,23 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
-  initIpc(() => mainWindow);
-  const { getConfig } = require('./ipc-config');
+
+  // 注册 IPC：先注册 config（提供 auth-expired 广播 + 窗口控制 + 心跳），
+  // 再注册 auth（依赖 ipc-config 的 broadcastAuthExpired），然后业务 + 发现
+  ipcConfig.register();
+  ipcAuth.register();
+  ipcBusiness.register();
+  ipcDiscovery.register();
+
+  // 启动心跳（net:online / net:offline）
+  ipcConfig.startHeartbeat(() => mainWindow);
+
+  // 已登录则恢复 token 定时刷新 + SSE 长连接
+  if (tokenStore.readToken()) {
+    ipcAuth.startTokenRefresh();
+    require('./user-events').start();
+  }
+
   tray.init({
     getWin: () => mainWindow,
     getCurrentUser: () => tokenStore.readUser(),
@@ -51,7 +78,11 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => { app.isQuiting = true; });
+app.on('before-quit', () => {
+  app.isQuiting = true;
+  ipcConfig.stopHeartbeat();
+  ipcAuth.stopTokenRefresh();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

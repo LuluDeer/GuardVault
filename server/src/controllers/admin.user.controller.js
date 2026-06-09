@@ -9,12 +9,13 @@ import { checkUserDeptAccess } from '../middlewares/authorize.js';
  * 获取用户列表
  */
 export async function listUsers(request, reply) {
-  const { page = 1, pageSize = 20, keyword, status } = request.query;
+  const { page = 1, pageSize = 20, keyword, status, deptId } = request.query;
   const params = {
     page: Number(page),
     pageSize: Number(pageSize),
     keyword,
     status,
+    deptId,
   };
   if (request.user.role === 'dept_admin' && request.user.deptId) {
     params.deptId = request.user.deptId;
@@ -29,7 +30,8 @@ export async function listUsers(request, reply) {
 export async function createUser(request, reply) {
   const schema = z.object({
     username: z.string().min(4).max(32).regex(/^[a-zA-Z0-9_]+$/),
-    password: z.string().min(8).max(128),
+    password: z.string().min(6).max(128),
+    deptId: z.number().int().positive().nullable().optional(),
   });
   const parsed = schema.safeParse(request.body);
   if (!parsed.success) {
@@ -44,6 +46,11 @@ export async function createUser(request, reply) {
   const existing = await userService.findUserByUsername(parsed.data.username);
   if (existing) {
     return fail(reply, ErrorCode.USERNAME_EXISTS, '用户名已存在');
+  }
+
+  if (parsed.data.deptId && request.user.role === 'dept_admin') {
+    const allowed = await checkUserDeptAccess(request, parsed.data.deptId);
+    if (!allowed) return fail(reply, ErrorCode.FORBIDDEN, '无权操作该部门');
   }
 
   const user = await userService.createUser(parsed.data);

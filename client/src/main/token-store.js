@@ -60,6 +60,11 @@ function clearToken() {
 // ===== 用户信息（无敏感，明文）=====
 function saveUser(user) {
   try {
+    // 不写空对象/未定义值，避免后续 readUser 拿到损坏数据
+    if (!user || typeof user !== 'object' || !user.id) {
+      clearUser();
+      return false;
+    }
     fs.writeFileSync(getPath(USER_FILE), JSON.stringify(user));
     return true;
   } catch { return false; }
@@ -67,7 +72,11 @@ function saveUser(user) {
 
 function readUser() {
   try {
-    return JSON.parse(fs.readFileSync(getPath(USER_FILE), 'utf8'));
+    const raw = fs.readFileSync(getPath(USER_FILE), 'utf8');
+    if (!raw.trim()) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.id) return null;
+    return parsed;
   } catch { return null; }
 }
 

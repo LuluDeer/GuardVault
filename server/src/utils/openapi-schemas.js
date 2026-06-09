@@ -91,6 +91,14 @@ export const openApiSchemas = {
       email: { type: 'string', format: 'email' },
     },
   },
+  InitSystemRequest: {
+    type: 'object',
+    required: ['username', 'password'],
+    properties: {
+      username: { type: 'string', minLength: 4, maxLength: 32 },
+      password: { type: 'string', minLength: 6, maxLength: 128 },
+    },
+  },
   UpdateUserRequest: {
     type: 'object',
     properties: {
@@ -99,7 +107,7 @@ export const openApiSchemas = {
       departmentId: { type: 'integer' },
       email: { type: 'string', format: 'email' },
       status: { type: 'integer' },
-      password: { type: 'string', minLength: 8, maxLength: 64, description: '可选：管理员重置密码' },
+      password: { type: 'string', minLength: 6, maxLength: 64, description: '可选：管理员重置密码' },
     },
   },
 
@@ -257,36 +265,36 @@ export const openApiSchemas = {
   },
   GrantRequest: {
     type: 'object',
-    required: ['userId', 'serviceId'],
+    required: ['userId', 'accountId'],
     properties: {
       userId: { type: 'integer' },
-      serviceId: { type: 'integer' },
+      accountId: { type: 'integer' },
       expiresAt: { type: 'string', format: 'date-time', nullable: true, description: '授权过期时间，不传则为永久' },
     },
   },
   RevokeRequest: {
     type: 'object',
-    required: ['userId', 'serviceId'],
+    required: ['userId', 'accountId'],
     properties: {
       userId: { type: 'integer' },
-      serviceId: { type: 'integer' },
+      accountId: { type: 'integer' },
     },
   },
   BatchGrantRequest: {
     type: 'object',
-    required: ['userIds', 'serviceId'],
+    required: ['userIds', 'accountId'],
     properties: {
       userIds: { type: 'array', items: { type: 'integer' } },
-      serviceId: { type: 'integer' },
+      accountId: { type: 'integer' },
       expiresAt: { type: 'string', format: 'date-time', nullable: true },
     },
   },
   BatchRevokeRequest: {
     type: 'object',
-    required: ['userIds', 'serviceId'],
+    required: ['userIds', 'accountId'],
     properties: {
       userIds: { type: 'array', items: { type: 'integer' } },
-      serviceId: { type: 'integer' },
+      accountId: { type: 'integer' },
     },
   },
 
@@ -314,8 +322,8 @@ export const openApiSchemas = {
       userId: { type: 'integer' },
       action: { type: 'string' },
       resource: { type: 'string' },
-      startTime: { type: 'string', format: 'date-time' },
-      endTime: { type: 'string', format: 'date-time' },
+      startTime: { type: 'string' },
+      endTime: { type: 'string' },
     },
   },
 

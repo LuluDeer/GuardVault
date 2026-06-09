@@ -24,7 +24,7 @@ export function getTotpCode(userId) {
   return request.get(`/admin/totp/code/${userId}`)
 }
 
-// 获取用户的 TOTP 原始密钥和 otpauth URL（用于二维码绑定）
-export function getUserSecret(userId) {
-  return request.get(`/admin/totp/secret/${userId}`)
+// 获取用户的 TOTP 原始密钥和 otpauth URL（用于二维码绑定）。需要管理员二次密码确认。
+export function getUserSecret(userId, adminPassword) {
+  return request.post(`/admin/totp/secret/${userId}`, { adminPassword })
 }

@@ -8,6 +8,10 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(32),
 });
 
+/**
+ * 用 refreshToken 换发新 token + 新 refreshToken
+ * 管理员/普通用户共用：根据 role 选不同的过期时间
+ */
 export async function refresh(request, reply) {
   const parsed = refreshSchema.safeParse(request.body);
   if (!parsed.success) {

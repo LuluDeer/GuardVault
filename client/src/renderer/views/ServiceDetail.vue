@@ -11,6 +11,21 @@
       <div class="spinner"></div>
     </div>
 
+    <div v-else-if="noAccess" class="no-access">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="no-access-icon">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        <line x1="12" y1="15" x2="12" y2="19"/>
+      </svg>
+      <h3>权限已失效</h3>
+      <p>{{ noAccessMessage }}</p>
+      <p class="hint">请联系管理员重新授权，或自行从列表中移除此条目</p>
+      <div class="actions">
+        <button class="btn-secondary" @click="$router.back()">返回</button>
+        <button class="btn-primary" @click="handleRemove">从我的列表中移除</button>
+      </div>
+    </div>
+
     <div v-else class="detail-content">
       <div class="service-header">
         <div class="header-icon">
@@ -78,15 +93,20 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import api from '../api/index.js';
+import { useServiceStore } from '../stores/service.js';
 
 const route = useRoute();
+const router = useRouter();
+const serviceStore = useServiceStore();
 const service = ref(null);
 const code = ref('');
 const remainSeconds = ref(30);
 const loading = ref(true);
 const showToast = ref(false);
+const noAccess = ref(false);
+const noAccessMessage = ref('');
 
 let countdownTimer = null;
 
@@ -96,14 +116,19 @@ const progressWidth = computed(() => {
 
 async function fetchService() {
   loading.value = true;
+  noAccess.value = false;
   try {
     const result = await api.getServiceDetail(route.params.id);
     if (result.code === 0) {
       service.value = result.data;
       await fetchCode();
+    } else if (result.code === 403 || /无权限|已撤销|已失效/.test(result.message || '')) {
+      noAccess.value = true;
+      noAccessMessage.value = result.message || '您对此服务无访问权限';
     }
   } catch (err) {
-    console.error('Failed to fetch service:', err);
+    noAccess.value = true;
+    noAccessMessage.value = '加载失败，请稍后重试';
   } finally {
     loading.value = false;
   }
@@ -116,6 +141,9 @@ async function fetchCode() {
       code.value = result.data.code;
       remainSeconds.value = result.data.remainSeconds;
       startCountdown();
+    } else if (result.code === 403) {
+      noAccess.value = true;
+      noAccessMessage.value = result.message || '权限已失效';
     }
   } catch (err) {
     console.error('Failed to fetch code:', err);
@@ -138,6 +166,12 @@ async function handleCopy() {
   await api.reportCopy(route.params.id);
   showToast.value = true;
   setTimeout(() => { showToast.value = false; }, 2000);
+}
+
+// 从我的列表中移除（撤销/失效后用户自助清理本地条目）
+function handleRemove() {
+  serviceStore.removeService(Number(route.params.id));
+  router.back();
 }
 
 onMounted(() => {
@@ -182,6 +216,42 @@ onUnmounted(() => {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+
+.no-access {
+  text-align: center;
+  padding: 60px 24px;
+  color: rgba(255,255,255,0.85);
+}
+
+.no-access-icon { color: #f56c6c; opacity: 0.85; margin-bottom: 16px; }
+
+.no-access h3 { font-size: 18px; margin: 0 0 12px; color: #fff; }
+
+.no-access p { margin: 6px 0; font-size: 14px; }
+
+.no-access .hint { color: rgba(255,255,255,0.55); font-size: 13px; }
+
+.no-access .actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.no-access .btn-primary,
+.no-access .btn-secondary {
+  padding: 10px 20px;
+  font-size: 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.no-access .btn-primary { background: #f56c6c; color: #fff; }
+.no-access .btn-primary:hover { opacity: 0.9; }
+.no-access .btn-secondary { background: rgba(255,255,255,0.12); color: #fff; }
+.no-access .btn-secondary:hover { background: rgba(255,255,255,0.2); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 

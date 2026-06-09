@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConfig: () => ipcRenderer.invoke('config:get'),
   setConfig: (config) => ipcRenderer.invoke('config:set', config),
 
+  // --- 局域网发现 ---
+  discoverServers: (opts) => ipcRenderer.invoke('discover:servers', opts),
+
   // --- 鉴权（主进程持有 token） ---
   login: (username, password, totpCode) => ipcRenderer.invoke('auth:login', { username, password, totpCode }),
   logout: () => ipcRenderer.invoke('auth:logout'),
@@ -38,8 +41,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeWindow: () => ipcRenderer.send('window:close'),
   toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
 
-  // --- 事件订阅（主进程 → 渲染进程） ---
-  onAuthExpired: (cb) => ipcRenderer.on('auth:expired', () => cb()),
-  onNetOnline: (cb) => ipcRenderer.on('net:online', () => cb()),
-  onNetOffline: (cb) => ipcRenderer.on('net:offline', () => cb()),
+  // --- 事件订阅（主进程 → 渲染进程），返回注销函数避免重复注册 ---
+  onAuthExpired: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('auth:expired', handler);
+    return () => ipcRenderer.removeListener('auth:expired', handler);
+  },
+  onNetOnline: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('net:online', handler);
+    return () => ipcRenderer.removeListener('net:online', handler);
+  },
+  onNetOffline: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('net:offline', handler);
+    return () => ipcRenderer.removeListener('net:offline', handler);
+  },
+  onGrantChanged: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on('grant:changed', handler);
+    return () => ipcRenderer.removeListener('grant:changed', handler);
+  },
 });

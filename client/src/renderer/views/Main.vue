@@ -79,6 +79,12 @@ function stopTimer() {
   if (timer) { clearInterval(timer); timer = null; }
 }
 
+// 窗口从后台回到前台时立即重拉一次（后台时 setInterval 会被节流/暂停，
+// 倒计时数值可能与实际 TOTP 不一致）
+function handleForeground() {
+  if (document.visibilityState === 'visible') fetchCode();
+}
+
 async function handleCopy() {
   if (!totpCode.value) return;
   api.copy(totpCode.value);
@@ -92,9 +98,15 @@ function handleLogout() {
 
 onMounted(() => {
   fetchCode().then(startTimer);
+  window.addEventListener('focus', handleForeground);
+  document.addEventListener('visibilitychange', handleForeground);
 });
 
-onUnmounted(stopTimer);
+onUnmounted(() => {
+  stopTimer();
+  window.removeEventListener('focus', handleForeground);
+  document.removeEventListener('visibilitychange', handleForeground);
+});
 </script>
 
 <style scoped>

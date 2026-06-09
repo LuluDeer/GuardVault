@@ -8,7 +8,7 @@ import { validatePassword } from '../utils/password-strength.js';
 export async function register(request, reply) {
   const schema = z.object({
     username: z.string().min(4).max(32).regex(/^[a-zA-Z0-9_]+$/),
-    password: z.string().min(8).max(128),
+    password: z.string().min(6).max(128),
     deptId: z.number().int().positive().optional(),
   });
   const parsed = schema.safeParse(request.body);

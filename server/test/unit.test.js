@@ -80,11 +80,23 @@ describe('TOTP 模块 totp.js', () => {
     expect(a.code).not.toBe(b.code);
   });
 
-  it('otplib.totp 与服务端 generateCode 输出一致', async () => {
-    const { totp: otplibTotp } = await import('otplib');
-    otplibTotp.options = { digits: 6, step: 30, algorithm: 'sha1' };
+  it('otplib.authenticator 与服务端 generateCode 输出一致', async () => {
+    const { authenticator } = await import('otplib');
+    const a = authenticator.clone();
+    a.options = { digits: 6, step: 30, algorithm: 'sha1' };
     const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
-    const expected = otplibTotp.generate(secret);
+    const expected = a.generate(secret);
+    const { code } = generateCode(secret);
+    expect(code).toBe(expected);
+  });
+
+  it('服务端码与 RFC 6238 标准实现一致（与手机端 Authenticator 对齐）', async () => {
+    const { authenticator } = await import('otplib');
+    const a = authenticator.clone();
+    a.options = { digits: 6, step: 30, algorithm: 'sha1' };
+    const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+    // 与 otplib.authenticator（Google Authenticator 兼容路径）一致即可
+    const expected = a.generate(secret);
     const { code } = generateCode(secret);
     expect(code).toBe(expected);
   });

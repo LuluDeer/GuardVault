@@ -12,16 +12,21 @@ let getConfig = null;
 let cache = { services: [], codes: {}, refreshTimer: null, user: null };
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../../public/favicon.svg');
+  const iconPath = path.join(__dirname, '../../public/icon_512.png');
   try {
     tray = new Tray(iconPath);
-  } catch {
-    if (process.platform === 'linux') {
-      tray = new Tray('/usr/share/pixmaps/guardvault-client.png');
-    } else {
+  } catch (error) {
+    console.warn('Failed to load icon:', error.message);
+    
+    try {
+      const nativeImage = require('electron').nativeImage;
+      tray = new Tray(nativeImage.createEmpty());
+    } catch (fallbackError) {
+      console.error('Failed to create tray with fallback icon:', fallbackError.message);
       return null;
     }
   }
+  
   rebuildMenu();
   tray.setToolTip('GuardVault');
   tray.on('click', () => showWindow());
@@ -39,7 +44,7 @@ function showWindow() {
 }
 
 function readServerConfig() {
-  if (typeof getConfig !== 'function') return { serverUrl: 'http://127.0.0.1:3000' };
+  if (typeof getConfig !== 'function') return { serverUrl: 'http://127.0.0.1:3001' };
   return getConfig();
 }
 

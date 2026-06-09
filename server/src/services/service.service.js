@@ -1,6 +1,6 @@
 import { prisma } from '../utils/prisma.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
-import { generateCode, generateSecret } from '../utils/totp.js';
+import { generateSecret } from '../utils/totp.js';
 import { CATEGORIES } from './department.service.js';
 
 export { CATEGORIES };
@@ -213,14 +213,18 @@ export async function generateCodeForService(id) {
   const epoch = Math.floor(Date.now() / 1000);
   const remainSeconds = service.period - (epoch % service.period);
 
-  const otplib = await import('otplib');
-  otplib.totp.options = {
+  // 关键：必须用 authenticator（带 base32 keyDecoder），不能用 otplib.totp，否则码与
+  // Google/Microsoft Authenticator 等标准客户端对不上。
+  // 每次克隆独立实例，避免与其它调用（比如不同 period 的服务）共享全局 options。
+  const { authenticator } = await import('otplib');
+  const a = authenticator.clone();
+  a.options = {
     digits: service.digits,
     step: service.period,
     algorithm: service.algorithm.toLowerCase(),
   };
 
-  const code = otplib.totp.generate(plainSecret);
+  const code = a.generate(plainSecret);
 
   return { code, remainSeconds };
 }

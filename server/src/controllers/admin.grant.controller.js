@@ -209,3 +209,91 @@ export async function batchRevoke(request, reply) {
 
   return success(reply, { results, successCount, total: parsed.data.userIds.length });
 }
+
+export async function batchGrantByDept(request, reply) {
+  const schema = z.object({
+    deptIds: z.array(z.number().int().positive()).min(1),
+    accountId: z.number().int().positive(),
+    remark: z.string().max(256).optional(),
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败');
+  }
+
+  const service = await serviceService.getService(parsed.data.accountId);
+  if (!service) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
+  }
+  if (!(await checkServiceDeptAccess(request, parsed.data.accountId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门服务');
+  }
+  // dept_admin 只能在自己部门授权
+  if (request.user.role === 'dept_admin' && request.user.deptId) {
+    const ok = parsed.data.deptIds.every(d => Number(d) === request.user.deptId);
+    if (!ok) return fail(reply, ErrorCode.FORBIDDEN, '部门管理员只能在本部门内授权');
+  }
+
+  const { results, totalUsers } = await grantService.batchGrantByDept({
+    deptIds: parsed.data.deptIds,
+    accountId: parsed.data.accountId,
+    grantedById: request.user.id,
+    remark: parsed.data.remark,
+  });
+
+  const successCount = results.filter(r => r.success).length;
+  await writeLog({
+    operatorId: request.user.id,
+    operatorName: request.user.username,
+    targetAccountId: service.id,
+    targetAccountName: service.name,
+    actionType: 'GRANT_BATCH_BY_DEPT',
+    actionDesc: `按部门批量授权：${parsed.data.deptIds.length} 部门、${successCount}/${totalUsers} 用户访问服务 ${service.name}`,
+    clientIp: request.ip,
+    result: 1,
+  });
+
+  return success(reply, { results, successCount, total: totalUsers, deptCount: parsed.data.deptIds.length });
+}
+
+export async function batchRevokeByDept(request, reply) {
+  const schema = z.object({
+    deptIds: z.array(z.number().int().positive()).min(1),
+    accountId: z.number().int().positive(),
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '参数校验失败');
+  }
+
+  const service = await serviceService.getService(parsed.data.accountId);
+  if (!service) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
+  }
+  if (!(await checkServiceDeptAccess(request, parsed.data.accountId))) {
+    return fail(reply, ErrorCode.FORBIDDEN, '无权限操作其他部门服务');
+  }
+  if (request.user.role === 'dept_admin' && request.user.deptId) {
+    const ok = parsed.data.deptIds.every(d => Number(d) === request.user.deptId);
+    if (!ok) return fail(reply, ErrorCode.FORBIDDEN, '部门管理员只能在本部门内操作');
+  }
+
+  const { results, totalUsers } = await grantService.batchRevokeByDept({
+    deptIds: parsed.data.deptIds,
+    accountId: parsed.data.accountId,
+  });
+
+  const successCount = results.filter(r => r.success).length;
+  await writeLog({
+    operatorId: request.user.id,
+    operatorName: request.user.username,
+    targetAccountId: service.id,
+    targetAccountName: service.name,
+    actionType: 'GRANT_REVOKE_BY_DEPT',
+    actionDesc: `按部门批量撤销：${parsed.data.deptIds.length} 部门、${successCount}/${totalUsers} 用户对服务 ${service.name} 的权限`,
+    clientIp: request.ip,
+    result: 1,
+  });
+
+  return success(reply, { results, successCount, total: totalUsers, deptCount: parsed.data.deptIds.length });
+}

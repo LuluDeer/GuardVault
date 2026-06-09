@@ -73,6 +73,13 @@ export async function login(request, reply) {
     });
   }
 
+  const userPublic = {
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    deptId: user.deptId ?? null,
+  };
+
   if (totpEnabled && totpCode) {
     const totpValid = await verifyTotp(user.id, totpCode);
     if (!totpValid) {
@@ -99,7 +106,7 @@ export async function login(request, reply) {
       clientIp, userAgent, result: 1,
     });
 
-    return success(reply, { token, expireAt, totpEnabled, refreshToken, refreshExpireAt: refreshExpireAt.toISOString() });
+    return success(reply, { token, expireAt, totpEnabled, refreshToken, refreshExpireAt: refreshExpireAt.toISOString(), user: userPublic });
   }
 
   await clearLoginFail(user.id, clientIp);
@@ -117,7 +124,7 @@ export async function login(request, reply) {
     clientIp, userAgent, result: 1,
   });
 
-  return success(reply, { token, expireAt, totpEnabled, refreshToken, refreshExpireAt: refreshExpireAt.toISOString() });
+  return success(reply, { token, expireAt, totpEnabled, refreshToken, refreshExpireAt: refreshExpireAt.toISOString(), user: userPublic });
 }
 
 export async function logout(request, reply) {

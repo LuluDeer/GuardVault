@@ -34,9 +34,18 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const result = await api.login(username, password, totpCode);
       if (result.code === 0) {
-        user.value = result.data.user;
+        // TOTP 必需时不要把 user 写进 store（此时未真正登录成功）
+        if (result.data.totpRequired) {
+          return {
+            ok: true,
+            totpRequired: true,
+            challengeToken: result.data.challengeToken,
+            expireAt: result.data.expireAt,
+          };
+        }
+        user.value = result.data.user || null;
         tokenExpired.value = false;
-        return { ok: true, totpRequired: result.data.totpRequired, challengeToken: result.data.challengeToken };
+        return { ok: true };
       }
       return { ok: false, message: result.message || '登录失败', code: result.code };
     } catch (err) {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import * as serviceService from '../services/service.service.js';
+import { getServiceCategories, saveServiceCategories } from '../services/department.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { parseOtpauthUri } from '../utils/otpauth.js';
@@ -68,7 +69,11 @@ export async function createService(request, reply) {
     period: z.number().int().min(15).max(120).optional(),
     algorithm: z.enum(['SHA1', 'SHA256', 'SHA512']).optional(),
     status: z.number().int().min(0).max(1).optional(),
-    deptId: z.number().int().positive(),
+    deptId: z.union([z.number().int().positive(), z.null(), z.string()]).optional().transform(val => {
+      if (val === '' || val === null || val === undefined) return null;
+      if (typeof val === 'string') return parseInt(val, 10);
+      return val;
+    }),
   });
 
   const parsed = schema.safeParse(request.body);
@@ -197,6 +202,49 @@ export async function deleteService(request, reply) {
 export async function getCategories(request, reply) {
   const categories = await serviceService.getServiceCategories();
   return success(reply, categories);
+}
+
+// 添加新分类
+export async function addCategory(request, reply) {
+  const schema = z.object({
+    category: z.string().min(1).max(32),
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '分类名称不能为空');
+  }
+
+  const categories = await getServiceCategories();
+  const newCategory = parsed.data.category.trim();
+
+  if (categories.map(c => c.toLowerCase()).includes(newCategory.toLowerCase())) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '分类已存在');
+  }
+
+  categories.push(newCategory);
+  await saveServiceCategories(categories);
+  return success(reply, { category: newCategory });
+}
+
+// 删除分类
+export async function deleteCategory(request, reply) {
+  const schema = z.object({
+    category: z.string().min(1),
+  });
+  const parsed = schema.safeParse(request.query);
+  if (!parsed.success) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '分类名称不能为空');
+  }
+
+  const categories = await getServiceCategories();
+  const index = categories.indexOf(parsed.data.category);
+  if (index === -1) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '分类不存在');
+  }
+
+  categories.splice(index, 1);
+  await saveServiceCategories(categories);
+  return success(reply, { category: parsed.data.category });
 }
 
 export async function createFromOtpauth(request, reply) {

@@ -26,6 +26,7 @@ export const api = {
 
   getConfig: () => window.electronAPI.getConfig(),
   setConfig: (c) => window.electronAPI.setConfig(c),
+  discoverServers: (opts) => window.electronAPI.discoverServers(opts),
   getAutoStart: () => window.electronAPI.getAutoStart(),
   setAutoStart: (b) => window.electronAPI.setAutoStart(b),
 
@@ -40,6 +41,7 @@ export const api = {
   onAuthExpired: (cb) => window.electronAPI.onAuthExpired(cb),
   onNetOnline: (cb) => window.electronAPI.onNetOnline(cb),
   onNetOffline: (cb) => window.electronAPI.onNetOffline(cb),
+  onGrantChanged: (cb) => window.electronAPI.onGrantChanged(cb),
 };
 
 export default api;

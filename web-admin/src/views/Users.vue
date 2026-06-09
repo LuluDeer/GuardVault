@@ -5,17 +5,20 @@
         <el-col :span="6">
           <el-input v-model="query.keyword" :placeholder="t('users.searchPlaceholder')" :prefix-icon="Search" clearable @keyup.enter="handleSearch" />
         </el-col>
-        <el-col :span="5">
+        <el-col :span="4">
           <el-select v-model="query.status" :placeholder="t('users.statusFilter')" clearable style="width:100%">
             <el-option :label="t('users.active')" value="1" />
             <el-option :label="t('users.inactive')" value="0" />
           </el-select>
         </el-col>
-        <el-col :span="4">
+        <el-col :span="6">
+          <el-select v-model="query.deptId" :placeholder="t('departments.name')" clearable style="width:100%">
+            <el-option v-for="d in departments" :key="d.id" :label="d.name" :value="d.id" />
+          </el-select>
+        </el-col>
+        <el-col :span="8" style="text-align:right">
           <el-button type="primary" :icon="Search" @click="handleSearch">{{ t('common.search') }}</el-button>
           <el-button @click="handleReset">{{ t('common.reset') }}</el-button>
-        </el-col>
-        <el-col :span="9" style="text-align:right">
           <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('users.addUser') }}</el-button>
         </el-col>
       </el-row>
@@ -33,6 +36,12 @@
       >
         <el-table-column prop="id" :label="t('common.id')" width="80" />
         <el-table-column prop="username" :label="t('users.username')" min-width="140" />
+        <el-table-column :label="t('departments.name')" min-width="120">
+          <template #default="{ row }">
+            <span v-if="row.deptName">{{ row.deptName }}</span>
+            <el-tag v-else type="info" size="small">未分配</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column :label="t('common.status')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
@@ -96,6 +105,18 @@
         <el-form-item :label="t('login.password')" prop="password">
           <el-input v-model="createForm.password" type="password" show-password :placeholder="t('login.password')" />
         </el-form-item>
+        <el-form-item :label="t('users.role')" prop="role">
+          <el-select v-model="createForm.role" :placeholder="t('users.selectRole')">
+            <el-option :label="t('users.roleNormal')" value="normal" />
+            <el-option :label="t('users.roleAdmin')" value="admin" />
+            <el-option :label="t('users.roleDeptAdmin')" value="dept_admin" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('departments.name')">
+          <el-select v-model="createForm.deptId" :placeholder="t('departments.name')" clearable style="width:100%">
+            <el-option v-for="d in departments" :key="d.id" :label="d.name" :value="d.id" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createVisible=false">{{ t('common.cancel') }}</el-button>
@@ -125,6 +146,7 @@ import { ref, reactive, onMounted, h, computed } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUserList, createUser, updateUser, deleteUser } from '@/api/user'
+import { getAllDepts } from '@/api/dept'
 import { useI18n } from '@/i18n'
 
 const { t, locale } = useI18n()
@@ -133,7 +155,8 @@ const loading = ref(false)
 const submitting = ref(false)
 const list = ref([])
 const total = ref(0)
-const query = reactive({ page: 1, pageSize: 20, keyword: '', status: '' })
+const query = reactive({ page: 1, pageSize: 20, keyword: '', status: '', deptId: '' })
+const departments = ref([])
 
 // 虚拟滚动表格列定义（大数据量场景，>50 行时启用，依赖 locale.value 以触发响应式刷新）
 const v2Columns = computed(() => [
@@ -169,12 +192,13 @@ const resetPwdVisible = ref(false)
 const currentRow = ref(null)
 const createRef = ref()
 const resetPwdRef = ref()
-const createForm = reactive({ username: '', password: '' })
+const createForm = reactive({ username: '', password: '', role: 'normal', deptId: null })
 const resetPwdForm = reactive({ password: '' })
 
 const createRules = computed(() => ({
   username: [{ required: true, message: t('users.username'), trigger: 'blur' }, { min: 3, max: 32, message: '3-32', trigger: 'blur' }],
   password: [{ required: true, message: t('login.password'), trigger: 'blur' }, { min: 6, message: '≥6', trigger: 'blur' }],
+  role: [{ required: true, message: t('users.selectRole'), trigger: 'blur' }],
 }))
 const resetPwdRules = computed(() => ({
   password: [{ required: true, message: t('login.password'), trigger: 'blur' }, { min: 6, message: '≥6', trigger: 'blur' }],
@@ -192,10 +216,18 @@ async function fetchList() {
 }
 
 function handleSearch() { query.page = 1; fetchList() }
-function handleReset() { query.keyword = ''; query.status = ''; query.page = 1; fetchList() }
+function handleReset() { query.keyword = ''; query.status = ''; query.deptId = ''; query.page = 1; fetchList() }
+
+async function fetchDepartments() {
+  try {
+    const res = await getAllDepts()
+    departments.value = res.data || []
+  } catch {}
+}
 
 function openCreate() {
   createForm.username = ''; createForm.password = ''
+  createForm.role = 'normal'; createForm.deptId = null
   createVisible.value = true
   createRef.value?.clearValidate()
 }
@@ -205,7 +237,12 @@ async function handleCreate() {
     if (!valid) return
     submitting.value = true
     try {
-      await createUser({ username: createForm.username, password: createForm.password })
+      await createUser({
+        username: createForm.username,
+        password: createForm.password,
+        role: createForm.role,
+        deptId: createForm.deptId || null,
+      })
       ElMessage.success(t('users.createSuccess'))
       createVisible.value = false
       fetchList()
@@ -253,7 +290,7 @@ async function handleDelete(row) {
   } catch {}
 }
 
-onMounted(fetchList)
+onMounted(() => { fetchDepartments(); fetchList() })
 </script>
 
 <style scoped>

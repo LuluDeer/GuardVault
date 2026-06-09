@@ -86,12 +86,12 @@ model ServiceAccount {
 
   status Int @default(1) // 1=启用 0=停用
 
-  deptId      Int      @map("dept_id") // 服务归属部门
+  deptId      Int?      @map("dept_id") // 服务归属部门，空表示全局共享
   createdById Int      @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  department Department       @relation(fields: [deptId], references: [id], onDelete: Restrict)
+  department Department?       @relation(fields: [deptId], references: [id], onDelete: SetNull)
   createdBy  SystemUser       @relation("ServiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
   grants     AccountGrant[]
   favorites  AccountFavorite[]

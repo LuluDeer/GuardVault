@@ -11,6 +11,8 @@ export const useServiceStore = defineStore('service', () => {
   // 收藏：Map<accountId, { sort, pinnedAt }>
   const favorites = ref(new Map());
   const lastFavoriteFetch = ref(0);
+  // 已被撤销授权的账号（收到 SSE 推送时记录；UI 据此禁用对应条目）
+  const revokedIds = ref(new Set());
 
   const categories = computed(() => {
     const cats = new Set(services.value.map(s => s.category));
@@ -42,9 +44,9 @@ export const useServiceStore = defineStore('service', () => {
     return groups;
   });
 
-  async function fetchServices() {
+  async function fetchServices(opts = {}) {
     const now = Date.now();
-    if (now - lastFetch.value < 60000 && services.value.length > 0) return;
+    if (!opts.force && now - lastFetch.value < 60000 && services.value.length > 0) return;
 
     loading.value = true;
     try {
@@ -165,6 +167,19 @@ export const useServiceStore = defineStore('service', () => {
     return null;
   }
 
+  // 返回缓存码 + 剩余秒数（用于组件层起倒计时）。
+  // 缓存内含 expireAt 绝对时间戳，避免本地时钟漂移导致倒计时不准。
+  function getCachedCodeInfo(id) {
+    const cached = codeCache.value[id];
+    if (!cached) return null;
+    const remainMs = cached.expireAt - Date.now();
+    if (remainMs <= 0) return null;
+    return {
+      code: cached.code,
+      remainSeconds: Math.max(1, Math.ceil(remainMs / 1000)),
+    };
+  }
+
   function startCountdown(id, remainSeconds) {
     if (countdownTimers.value[id]) {
       clearInterval(countdownTimers.value[id]);
@@ -211,6 +226,41 @@ export const useServiceStore = defineStore('service', () => {
     return true;
   }
 
+  // 本地移除某个服务（用户已被撤销授权时使用，仅清理本地缓存与 TOTP 缓存）
+  function removeService(id) {
+    services.value = services.value.filter(s => s.id !== id);
+    delete codeCache.value[id];
+    if (countdownTimers.value[id]) {
+      clearInterval(countdownTimers.value[id]);
+      delete countdownTimers.value[id];
+    }
+    if (favorites.value.has(id)) favorites.value.delete(id);
+    revokedIds.value.delete(id);
+  }
+
+  // SSE 事件处理：管理员在后台撤销/新增授权时由主进程推送
+  function handleGrantChanged(payload) {
+    if (!payload) return;
+    const ids = (payload.accounts || []).map(a => Number(a.accountId)).filter(Boolean);
+    if (payload.type === 'revoked') {
+      for (const id of ids) {
+        revokedIds.value.add(id);
+        // 立即清空当前码与倒计时，避免用户继续用过期码
+        delete codeCache.value[id];
+        if (countdownTimers.value[id]) {
+          clearInterval(countdownTimers.value[id]);
+          delete countdownTimers.value[id];
+        }
+      }
+    } else if (payload.type === 'granted') {
+      for (const id of ids) revokedIds.value.delete(id);
+    }
+  }
+
+  function isRevoked(id) {
+    return revokedIds.value.has(Number(id));
+  }
+
   return {
     services,
     loading,
@@ -228,9 +278,13 @@ export const useServiceStore = defineStore('service', () => {
     getCode,
     cacheCode,
     getCachedCode,
+    getCachedCodeInfo,
     startCountdown,
     stopCountdown,
     clearAllTimers,
     copyCode,
+    removeService,
+    handleGrantChanged,
+    isRevoked,
   };
 });

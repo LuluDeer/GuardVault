@@ -33,7 +33,7 @@
           <el-icon :size="24"><Key /></el-icon>
         </div>
         <div class="stat-content">
-          <div class="stat-label">{{ t('menu.grants') }}</div>
+          <div class="stat-label">{{ t('audit.grants') }}</div>
           <div class="stat-value">{{ summary.totalGrants || 0 }}</div>
         </div>
       </div></el-col>
@@ -44,9 +44,9 @@
         <div class="card-header">
           <span>{{ t('audit.title') }} - {{ t('logs.time') }}</span>
           <el-radio-group v-model="trendDays" size="small" @change="fetchDaily">
-            <el-radio-button :label="7">7d</el-radio-button>
-            <el-radio-button :label="14">14d</el-radio-button>
-            <el-radio-button :label="30">30d</el-radio-button>
+            <el-radio-button :label="7">{{ t('audit.days7') }}</el-radio-button>
+            <el-radio-button :label="14">{{ t('audit.days14') }}</el-radio-button>
+            <el-radio-button :label="30">{{ t('audit.days30') }}</el-radio-button>
           </el-radio-group>
         </div>
       </template>
@@ -56,12 +56,12 @@
     <el-row :gutter="16">
       <el-col :span="12">
         <el-card>
-          <template #header><span>Top 20 Services</span></template>
+          <template #header><span>{{ t('audit.topServices') }}</span></template>
           <el-table :data="serviceStats" v-loading="loading" border style="width:100%" max-height="500">
             <el-table-column type="index" label="#" width="50" />
             <el-table-column prop="accountName" :label="t('menu.services')" min-width="140" />
-            <el-table-column prop="viewCount" label="Views" width="100" sortable />
-            <el-table-column prop="copyCount" label="Copies" width="100" sortable />
+            <el-table-column prop="viewCount" :label="t('audit.views')" width="100" sortable />
+            <el-table-column prop="copyCount" :label="t('audit.copies')" width="100" sortable />
             <el-table-column prop="total" :label="t('common.actions')" width="80" sortable>
               <template #default="{ row }">
                 <el-tag type="primary">{{ row.total }}</el-tag>
@@ -72,12 +72,12 @@
       </el-col>
       <el-col :span="12">
         <el-card>
-          <template #header><span>Top 20 Users</span></template>
+          <template #header><span>{{ t('audit.topUsers') }}</span></template>
           <el-table :data="userStats" v-loading="loading" border style="width:100%" max-height="500">
             <el-table-column type="index" label="#" width="50" />
             <el-table-column prop="username" :label="t('users.username')" min-width="140" />
-            <el-table-column prop="viewCount" label="Views" width="100" sortable />
-            <el-table-column prop="copyCount" label="Copies" width="100" sortable />
+            <el-table-column prop="viewCount" :label="t('audit.views')" width="100" sortable />
+            <el-table-column prop="copyCount" :label="t('audit.copies')" width="100" sortable />
             <el-table-column prop="total" :label="t('common.actions')" width="80" sortable>
               <template #default="{ row }">
                 <el-tag type="success">{{ row.total }}</el-tag>
@@ -130,30 +130,30 @@ const dailyChart = ref(null)
 let chart = null
 
 const ACTION_LABELS = {
-  'LOGIN': '登录',
-  'LOGIN_FAIL': '登录失败',
-  'CREATE_USER': '创建用户',
-  'DELETE_USER': '删除用户',
-  'ENABLE_TOTP': '启用2FA',
-  'DISABLE_TOTP': '禁用2FA',
-  'RESET_TOTP': '重置2FA',
-  'CODE_VIEW': '查看验证码',
-  'CODE_COPY': '复制验证码',
-  'PASSWORD_CHANGE': '修改密码',
-  'SERVICE_CREATE': '创建服务',
-  'SERVICE_UPDATE': '更新服务',
-  'SERVICE_DELETE': '删除服务',
-  'SERVICE_RESET_SECRET': '重置密钥',
-  'SERVICE_VIEW_SECRET': '查看明文密钥',
-  'SERVICE_CREATE_SCAN': '扫码录入',
-  'SERVICE_BATCH_IMPORT': '批量导入',
-  'GRANT_CREATE': '授权',
-  'GRANT_REVOKE': '撤销授权',
-  'GRANT_BATCH': '批量授权',
-  'GRANT_BATCH_REVOKE': '批量撤销',
-  'DEPT_CREATE': '创建部门',
-  'DEPT_UPDATE': '更新部门',
-  'DEPT_DELETE': '删除部门',
+  'LOGIN': t('audit.action.login'),
+  'LOGIN_FAIL': t('audit.action.loginFail'),
+  'CREATE_USER': t('audit.action.createUser'),
+  'DELETE_USER': t('audit.action.deleteUser'),
+  'ENABLE_TOTP': t('audit.action.enableTotp'),
+  'DISABLE_TOTP': t('audit.action.disableTotp'),
+  'RESET_TOTP': t('audit.action.resetTotp'),
+  'CODE_VIEW': t('audit.action.codeView'),
+  'CODE_COPY': t('audit.action.codeCopy'),
+  'PASSWORD_CHANGE': t('audit.action.passwordChange'),
+  'SERVICE_CREATE': t('audit.action.serviceCreate'),
+  'SERVICE_UPDATE': t('audit.action.serviceUpdate'),
+  'SERVICE_DELETE': t('audit.action.serviceDelete'),
+  'SERVICE_RESET_SECRET': t('audit.action.serviceResetSecret'),
+  'SERVICE_VIEW_SECRET': t('audit.action.serviceViewSecret'),
+  'SERVICE_CREATE_SCAN': t('audit.action.serviceScan'),
+  'SERVICE_BATCH_IMPORT': t('audit.action.serviceImport'),
+  'GRANT_CREATE': t('audit.action.grantCreate'),
+  'GRANT_REVOKE': t('audit.action.grantRevoke'),
+  'GRANT_BATCH': t('audit.action.grantBatch'),
+  'GRANT_BATCH_REVOKE': t('audit.action.grantBatchRevoke'),
+  'DEPT_CREATE': t('audit.action.deptCreate'),
+  'DEPT_UPDATE': t('audit.action.deptUpdate'),
+  'DEPT_DELETE': t('audit.action.deptDelete'),
 }
 
 const formatAction = (key) => ACTION_LABELS[key] || key
@@ -212,15 +212,15 @@ function renderChart() {
 
   chart.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['View', 'Copy', 'Service Create', 'Grant'], top: 0 },
+    legend: { data: [t('audit.chart.view'), t('audit.chart.copy'), t('audit.chart.service'), t('audit.chart.grant')], top: 0 },
     grid: { left: 40, right: 20, top: 40, bottom: 30 },
     xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11 } },
     yAxis: { type: 'value' },
     series: [
-      { name: 'View', data: viewData, type: 'line', smooth: true, itemStyle: { color: '#409eff' } },
-      { name: 'Copy', data: copyData, type: 'line', smooth: true, itemStyle: { color: '#67c23a' } },
-      { name: 'Service Create', data: serviceData, type: 'bar', itemStyle: { color: '#e6a23c' } },
-      { name: 'Grant', data: grantData, type: 'bar', itemStyle: { color: '#f56c6c' } },
+      { name: t('audit.chart.view'), data: viewData, type: 'line', smooth: true, itemStyle: { color: '#409eff' } },
+      { name: t('audit.chart.copy'), data: copyData, type: 'line', smooth: true, itemStyle: { color: '#67c23a' } },
+      { name: t('audit.chart.service'), data: serviceData, type: 'bar', itemStyle: { color: '#e6a23c' } },
+      { name: t('audit.chart.grant'), data: grantData, type: 'bar', itemStyle: { color: '#f56c6c' } },
     ],
   })
 }

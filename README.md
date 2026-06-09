@@ -8,6 +8,7 @@
 管理员在 Web 后台录入各业务系统的 TOTP 服务账号（AWS / VPN / GitHub 等），按部门 / 按人授权给员工查看；员工在 PC 客户端看到自己有权限的服务列表，每个服务展示实时 TOTP 码 + 倒计时，可一键复制。适合 50-200 人规模的运维 / SRE 团队。
 
 **核心特性**
+
 - 🔐 **安全加密**：服务密钥 AES-256 加密存库，客户端永远不接触明文
 - 👥 **三级角色**：`super_admin` / `dept_admin` / `user`，权限分级管理
 - 📋 **多种录入**：手动录入 + 二维码扫码 + CSV/JSON 批量导入 + 谷歌OTP导入
@@ -56,22 +57,22 @@ GuardVault/
 
 ## 🛠️ 技术栈
 
-| 模块 | 技术 | 版本要求 |
-| --- | --- | --- |
-| 服务端 | Fastify + Prisma + MySQL + JWT + bcryptjs + zod | Node.js ≥ 18 |
-| PC 客户端 | Electron + Vue 3 + Pinia + vue-router | Node.js ≥ 18 |
-| Web 管理后台 | Vue 3 + Element Plus + axios + qrcode | Node.js ≥ 18 |
-| 运维 | PM2 / systemd | - |
+| 模块       | 技术                                              | 版本要求         |
+| -------- | ----------------------------------------------- | ------------ |
+| 服务端      | Fastify + Prisma + MySQL + JWT + bcryptjs + zod | Node.js ≥ 18 |
+| PC 客户端   | Electron + Vue 3 + Pinia + vue-router           | Node.js ≥ 18 |
+| Web 管理后台 | Vue 3 + Element Plus + axios + qrcode           | Node.js ≥ 18 |
+| 运维       | PM2 / systemd                                   | -            |
 
 ## 🚀 快速开始
 
 ### 📋 环境要求
 
-| 依赖 | 版本 | 说明 |
-| --- | --- | --- |
-| Node.js | ≥ 18 | 推荐使用 18 LTS 或 20 LTS |
-| MySQL | ≥ 8.0 | 数据库服务 |
-| Git | ≥ 2.0 | 代码版本管理 |
+| 依赖      | 版本    | 说明                   |
+| ------- | ----- | -------------------- |
+| Node.js | ≥ 18  | 推荐使用 18 LTS 或 20 LTS |
+| MySQL   | ≥ 8.0 | 数据库服务                |
+| Git     | ≥ 2.0 | 代码版本管理               |
 
 ### 🔧 安装依赖
 
@@ -114,11 +115,13 @@ cd web-admin; npm install; cd ..
 #### 1. 创建配置文件
 
 **Linux / macOS**
+
 ```bash
 cp server/.env.example server/.env
 ```
 
 **Windows (PowerShell)**
+
 ```powershell
 Copy-Item server/.env.example server/.env
 ```
@@ -142,7 +145,7 @@ JWT_ADMIN_EXPIRE=1800     # 管理员 Token 有效期 30 分钟
 ADMIN_ENCRYPT_KEY="32字节的随机字符串，请务必妥善保管"
 
 # 服务端口（可选）
-PORT=3000
+PORT=3001
 HOST=0.0.0.0
 ```
 
@@ -203,11 +206,11 @@ pm2 startup
 
 ### 🌐 访问地址
 
-| 端 | 地址 | 默认端口 |
-| --- | --- | --- |
-| 服务端 API | http://localhost:3000 | 3000 |
-| Web 管理后台 | http://localhost:5173 | 5173 |
-| PC 客户端 | 启动后登录界面配置服务端地址 | - |
+| 端        | 地址                      | 默认端口 |
+| -------- | ----------------------- | ---- |
+| 服务端 API  | <http://localhost:3001> | 3001 |
+| Web 管理后台 | <http://localhost:5173> | 5173 |
+| PC 客户端   | 启动后登录界面配置服务端地址          | -    |
 
 ## 📝 系统初始化
 
@@ -216,42 +219,42 @@ pm2 startup
 ### 方式一：API 调用
 
 ```bash
-curl -X POST http://localhost:3000/api/admin/init \
+curl -X POST http://localhost:3001/api/admin/init \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "Admin@123456"}'
+  -d '{"username": "admin", "password": "Admin@123"
 ```
 
 ### 方式二：浏览器访问
 
-打开浏览器，访问 `http://localhost:3000/api/admin/init`，提交 POST 请求。
+打开浏览器，访问 `http://localhost:3001/api/admin/init`，提交 POST 请求。
 
-成功后即可用 `admin` / `Admin@123456` 登录 Web 管理后台。
+成功后即可用 `admin` / `Admin@123` 登录 Web 管理后台。
 
 ## 🎯 功能矩阵
 
-| 功能 | PC 客户端 | Web 后台 |
-| --- | --- | --- |
-| 用户登录/登出 | ✅ | ✅ |
-| 服务列表（按权限过滤） | ✅ | ✅ |
-| 实时 TOTP 验证码 | ✅ | ✅（管理员代查） |
-| 30 秒倒计时 + 大字号码 | ✅ | — |
-| 复制验证码（30秒自动清空） | ✅ | ✅ |
-| 修改自己的密码 | ✅ | ✅ |
-| 托盘显示码 + 一键复制 | ✅ | — |
-| 快捷键 `Ctrl+1~9` / `Esc` | ✅ | — |
-| 系统通知 | ✅ | — |
-| 开机自启（Win/macOS/Linux） | ✅ | — |
-| 心跳检测 + 断线重连 | ✅ | — |
-| safeStorage 安全存 Token | ✅ | — |
-| 部门管理（增/删/改） | — | ✅ |
-| 服务账号管理（增/删/改/重置密钥） | — | ✅ |
-| 服务录入：手动 / 扫码 / CSV 批量 / 谷歌OTP导入 | — | ✅ |
-| 授权管理（单/批量） | — | ✅ |
-| 用户管理（增/删/改/禁） | — | ✅ |
-| 操作日志查询 + CSV 导出 | — | ✅ |
-| 审计报表（图表+Top20） | — | ✅ |
-| 系统配置 | — | ✅ |
-| 登录失败锁定策略 | — | ✅ |
+| 功能                              | PC 客户端 | Web 后台   |
+| ------------------------------- | ------ | -------- |
+| 用户登录/登出                         | ✅      | ✅        |
+| 服务列表（按权限过滤）                     | ✅      | ✅        |
+| 实时 TOTP 验证码                     | ✅      | ✅（管理员代查） |
+| 30 秒倒计时 + 大字号码                  | ✅      | —        |
+| 复制验证码（30秒自动清空）                  | ✅      | ✅        |
+| 修改自己的密码                         | ✅      | ✅        |
+| 托盘显示码 + 一键复制                    | ✅      | —        |
+| 快捷键 `Ctrl+1~9` / `Esc`          | ✅      | —        |
+| 系统通知                            | ✅      | —        |
+| 开机自启（Win/macOS/Linux）           | ✅      | —        |
+| 心跳检测 + 断线重连                     | ✅      | —        |
+| safeStorage 安全存 Token           | ✅      | —        |
+| 部门管理（增/删/改）                     | —      | ✅        |
+| 服务账号管理（增/删/改/重置密钥）              | —      | ✅        |
+| 服务录入：手动 / 扫码 / CSV 批量 / 谷歌OTP导入 | —      | ✅        |
+| 授权管理（单/批量）                      | —      | ✅        |
+| 用户管理（增/删/改/禁）                   | —      | ✅        |
+| 操作日志查询 + CSV 导出                 | —      | ✅        |
+| 审计报表（图表+Top20）                  | —      | ✅        |
+| 系统配置                            | —      | ✅        |
+| 登录失败锁定策略                        | —      | ✅        |
 
 ## 🔒 安全设计
 
@@ -266,6 +269,7 @@ curl -X POST http://localhost:3000/api/admin/init \
 ## 📡 API 摘要
 
 ### 用户端
+
 - `POST /api/user/login` / `POST /api/user/logout`
 - `PUT  /api/user/password`（改密）
 - `GET  /api/user/totp/code`（个人登录 2FA 码）
@@ -276,6 +280,7 @@ curl -X POST http://localhost:3000/api/admin/init \
 - `GET  /api/health`
 
 ### 管理端
+
 - `POST /api/admin/init`（系统初始化）
 - `POST /api/admin/login` / `POST /api/admin/logout`
 - `PUT  /api/admin/password`
@@ -352,9 +357,9 @@ npm run build            # 构建生产版本，产物在 dist/
 
 ### 1. 客户端连不上服务端
 
-登录前在"服务端地址"里填入正确的 `http://<ip>:3000`，先用浏览器访问 `/api/health` 验证可达。
+登录前在"服务端地址"里填入正确的 `http://<ip>:3001`，先用浏览器访问 `/api/health` 验证可达。
 
-### 2. Prisma 报错 "Environment variable not found: DATABASE_URL"
+### 2. Prisma 报错 "Environment variable not found: DATABASE\_URL"
 
 `server/.env` 没建或字段缺失。`start.sh` / `start.bat` 启动时会自动校验并提示。
 
@@ -366,7 +371,7 @@ npm run build            # 构建生产版本，产物在 dist/
 
 支持标准 `otpauth://totp/Issuer:Account?secret=...&issuer=...&algorithm=SHA1&digits=6&period=30` URI。Google Authenticator / Microsoft Authenticator / 1Password 等主流应用导出的二维码均兼容。
 
-### 5. dept_admin 跨部门操作会怎样？
+### 5. dept\_admin 跨部门操作会怎样？
 
 后端在 service / grant / dept 控制器中校验了部门归属，跨部门请求会返回 403。前端按 deptId 过滤，无需额外处理。
 
@@ -395,6 +400,7 @@ Windows 用户请使用对应的 `.bat` 脚本：`start.bat` / `stop.bat`。
 ### 10. MySQL 如何安装？
 
 **Linux (Ubuntu/Debian)**
+
 ```bash
 sudo apt update && sudo apt install mysql-server
 sudo systemctl start mysql
@@ -402,13 +408,14 @@ sudo systemctl enable mysql
 ```
 
 **macOS (Homebrew)**
+
 ```bash
 brew install mysql
 brew services start mysql
 ```
 
 **Windows**
-下载安装包：https://dev.mysql.com/downloads/installer/
+下载安装包：<https://dev.mysql.com/downloads/installer/>
 
 ## 🔄 端到端测试流程
 
@@ -437,6 +444,7 @@ brew services start mysql
 ```
 
 类型：
+
 - `feat`: 新功能
 - `fix`: 修复 bug
 - `docs`: 文档更新
@@ -451,7 +459,7 @@ brew services start mysql
 - 使用 Prettier 进行代码格式化
 - 前端组件使用 PascalCase 命名
 - 函数使用 camelCase 命名
-- 常量使用 UPPER_SNAKE_CASE 命名
+- 常量使用 UPPER\_SNAKE\_CASE 命名
 
 ### PR 流程
 

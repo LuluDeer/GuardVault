@@ -23,3 +23,11 @@ export function batchGrant(data) {
 export function batchRevoke(data) {
   return request.post('/admin/grant/batch-revoke', data)
 }
+
+export function batchGrantByDept(data) {
+  return request.post('/admin/grant/batch-grant-by-dept', data)
+}
+
+export function batchRevokeByDept(data) {
+  return request.post('/admin/grant/batch-revoke-by-dept', data)
+}

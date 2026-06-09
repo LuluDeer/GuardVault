@@ -18,7 +18,7 @@
           <el-icon><Grid /></el-icon><span>{{ t('menu.services') }}</span>
         </el-menu-item>
         <el-menu-item index="/import">
-          <el-icon><Upload /></el-icon><span>谷歌OTP导入</span>
+          <el-icon><Upload /></el-icon><span>{{ t('menu.import') }}</span>
         </el-menu-item>
         <el-menu-item index="/departments">
           <el-icon><OfficeBuilding /></el-icon><span>{{ t('menu.departments') }}</span>
@@ -108,9 +108,9 @@ const activeMenu = computed(() => '/' + route.path.split('/')[1])
 const currentLocaleLabel = computed(() => availableLocales.find(l => l.value === locale.value)?.label || locale.value)
 
 const sidebarWidth = '210px'
-const menuBg = computed(() => theme.isDark ? '#0f172a' : '#001529')
-const menuText = computed(() => theme.isDark ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.65)')
-const menuActive = computed(() => '#fff')
+const menuBg = computed(() => theme.isDark ? '#0f172a' : '#fff')
+const menuText = computed(() => theme.isDark ? 'rgba(255,255,255,0.7)' : '#606266')
+const menuActive = computed(() => '#409eff')
 
 async function handleCommand(cmd) {
   if (cmd === 'logout') {
@@ -159,10 +159,14 @@ onMounted(() => {
 }
 
 .logo-text {
-  color: #fff;
+  color: #1a1a1a;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.5px;
+}
+
+html.dark .logo-text {
+  color: #fff;
 }
 
 .topbar {

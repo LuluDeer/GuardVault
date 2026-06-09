@@ -29,9 +29,11 @@ export async function listUsers({ page = 1, pageSize = 20, keyword, status, dept
         username: true,
         role: true,
         status: true,
+        deptId: true,
         createdAt: true,
         lastLoginTime: true,
         totpKey: { select: { isEnable: true, resetTime: true } },
+        department: { select: { id: true, name: true, code: true } },
       },
     }),
     prisma.systemUser.count({ where }),
@@ -43,6 +45,9 @@ export async function listUsers({ page = 1, pageSize = 20, keyword, status, dept
       username: u.username,
       role: u.role,
       status: u.status,
+      deptId: u.deptId,
+      deptName: u.department?.name ?? '',
+      deptCode: u.department?.code ?? '',
       createdAt: u.createdAt,
       lastLoginTime: u.lastLoginTime,
       totpEnabled: u.totpKey?.isEnable === 1,
@@ -71,24 +76,33 @@ export async function findUserByUsername(username) {
 /**
  * 创建新用户
  */
-export async function createUser({ username, password }) {
+export async function createUser({ username, password, deptId }) {
   const hash = await bcrypt.hash(password, 12);
   return prisma.systemUser.create({
-    data: { username, password: hash, role: 'user', status: 1 },
-    select: { id: true, username: true },
+    data: {
+      username,
+      password: hash,
+      role: 'user',
+      status: 1,
+      ...(deptId ? { deptId: Number(deptId) } : {}),
+    },
+    select: { id: true, username: true, deptId: true },
   });
 }
 
 /**
  * 更新用户信息（密码/状态）
  */
-export async function updateUser(id, { password, status }) {
+export async function updateUser(id, { password, status, deptId }) {
   const data = {};
   if (password !== undefined) {
     data.password = await bcrypt.hash(password, 12);
   }
   if (status !== undefined) {
     data.status = status;
+  }
+  if (deptId !== undefined) {
+    data.deptId = deptId === null || deptId === '' ? null : Number(deptId);
   }
   await prisma.systemUser.update({ where: { id }, data });
 }

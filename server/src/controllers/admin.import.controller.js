@@ -3,7 +3,7 @@ import { parseOtpMigrationUrl, buildOtpauthUrl } from '../utils/otp-migration.js
 import { parseOtpauthUri } from '../utils/otpauth.js';
 import { createService } from '../services/service.service.js';
 import { prisma } from '../utils/prisma.js';
-import { addLog } from '../services/audit.service.js';
+import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 
 export async function parseMigrationUrl(req, reply) {

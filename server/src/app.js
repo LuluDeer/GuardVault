@@ -11,14 +11,32 @@ import { errorHandler } from './utils/error.js';
 import { getCorsOrigins } from './utils/security.js';
 import { openApiSchemas } from './utils/openapi-schemas.js';
 import { startLogCleanupTask } from './services/log.service.js';
-import { ipBlockCheck } from './middlewares/ip-block.js';
-import adminRoutes from './routes/admin/index.js';
-import userRoutes from './routes/user/index.js';
+
+// 路由（按业务域拆分子模块，集中在 app.js 装载）
+import adminAuthRoutes from './routes/admin/auth.js';
+import adminSessionRoutes from './routes/admin/session.js';
+import adminUserRoutes from './routes/admin/user.js';
+import adminTotpRoutes from './routes/admin/totp.js';
+import adminLogRoutes from './routes/admin/log.js';
+import adminConfigRoutes from './routes/admin/config.js';
+import adminDeptRoutes from './routes/admin/dept.js';
+import adminServiceRoutes from './routes/admin/service.js';
+import adminGrantRoutes from './routes/admin/grant.js';
+import adminAuditRoutes from './routes/admin/audit.js';
+import adminSecurityRoutes from './routes/admin/security.js';
+import adminStatusRoutes from './routes/admin/status.js';
+import adminImportRoutes from './routes/admin/import.js';
+import userAuthRoutes from './routes/user/auth.js';
+import userSessionRoutes from './routes/user/session.js';
+import userTotpRoutes from './routes/user/totp.js';
+import userServiceRoutes from './routes/user/service.js';
+import userFavoriteRoutes from './routes/user/favorite.js';
+import userEventRoutes from './routes/user/events.js';
 
 // 启动前强校验环境变量，缺一即拒启
 assertEnv();
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.BIND_HOST || '0.0.0.0';
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -78,7 +96,7 @@ await fastify.register(swagger, {
       contact: { name: 'GuardVault Team' },
     },
     servers: [
-      { url: 'http://127.0.0.1:3000', description: '本机开发' },
+      { url: 'http://127.0.0.1:3001', description: '本机开发' },
     ],
     components: {
       securitySchemes: {
@@ -134,8 +152,26 @@ await fastify.register(rateLimit, {
 });
 
 // 注册路由（具体端点的更细粒度限流在路由层覆盖）
-await fastify.register(adminRoutes);
-await fastify.register(userRoutes);
+// 顺序：先注册 auth（公开端点），再注册需鉴权的子模块
+await fastify.register(adminAuthRoutes);
+await fastify.register(adminSessionRoutes);
+await fastify.register(adminUserRoutes);
+await fastify.register(adminTotpRoutes);
+await fastify.register(adminLogRoutes);
+await fastify.register(adminConfigRoutes);
+await fastify.register(adminDeptRoutes);
+await fastify.register(adminServiceRoutes);
+await fastify.register(adminGrantRoutes);
+await fastify.register(adminAuditRoutes);
+await fastify.register(adminSecurityRoutes);
+await fastify.register(adminStatusRoutes);
+await fastify.register(adminImportRoutes);
+await fastify.register(userAuthRoutes);
+await fastify.register(userSessionRoutes);
+await fastify.register(userTotpRoutes);
+await fastify.register(userServiceRoutes);
+await fastify.register(userFavoriteRoutes);
+await fastify.register(userEventRoutes);
 
 // 启动日志清理定时任务（每天凌晨 3 点，可通过 LOG_CLEANUP_CRON_HOUR 调整）
 startLogCleanupTask(fastify.log);

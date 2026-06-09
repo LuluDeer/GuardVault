@@ -20,7 +20,7 @@ assert_server_env() {
     log_err "server/.env 不存在，请先复制 .env.example 并填写"
     exit 1
   fi
-  for key in DATABASE_URL JWT_SECRET ADMIN_ENCRYPT_KEY; do
+  for key in DATABASE_URL JWT_SECRET TOTP_MASTER_KEY; do
     if ! grep -q "^${key}=" server/.env; then
       log_err "server/.env 缺少 ${key} 配置"
       exit 1
@@ -45,7 +45,7 @@ start_server() {
     log_warn "服务端已在运行 PID $(cat $LOG_DIR/server.pid)"
     return
   fi
-  check_port 3000 || { log_err "请先停掉占用 3000 端口的进程"; exit 1; }
+  check_port 3001 || { log_err "请先停掉占用 3001 端口的进程"; exit 1; }
   log_info "启动服务端..."
   (cd server && nohup node src/app.js > "$LOG_DIR/server.log" 2>&1 & echo $! > "$LOG_DIR/server.pid")
   log_info "服务端 PID: $(cat $LOG_DIR/server.pid)  日志: $LOG_DIR/server.log"
@@ -70,7 +70,23 @@ start_client() {
     return
   fi
   log_info "启动客户端..."
-  (cd client && nohup npm run dev > "$LOG_DIR/client.log" 2>&1 & echo $! > "$LOG_DIR/client.pid")
+  (
+    cd client
+    nohup env NODE_ENV=development VITE_DEV_SERVER_URL=http://localhost:5175 npx vite > "$LOG_DIR/vite.log" 2>&1 &
+    VITE_PID=$!
+    echo $VITE_PID > "$LOG_DIR/vite.pid"
+    # 等 vite 起来
+    for i in $(seq 1 30); do
+      if curl -s -o /dev/null -m 1 http://localhost:5175/; then
+        log_info "vite 已就绪 (耗时 ${i}s)"
+        break
+      fi
+      sleep 1
+    done
+    nohup env NODE_ENV=development VITE_DEV_SERVER_URL=http://localhost:5175 npx electron . > "$LOG_DIR/client.log" 2>&1 &
+    echo $! > "$LOG_DIR/client.pid"
+  )
+  log_info "Vite PID: $(cat $LOG_DIR/vite.pid)  日志: $LOG_DIR/vite.log"
   log_info "客户端 PID: $(cat $LOG_DIR/client.pid)  日志: $LOG_DIR/client.log"
 }
 
@@ -78,7 +94,7 @@ cmd=${1:-all}
 case "$cmd" in
   server) start_server ;;
   web)    start_web ;;
-  client) start_client ;;
+  client) start_server; start_client ;;
   all)    start_server; start_web; log_info "客户端请单独运行：./start.sh client" ;;
   *) echo "用法: $0 [server|web|client|all]"; exit 1 ;;
 esac

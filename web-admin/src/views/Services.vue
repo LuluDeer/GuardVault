@@ -98,9 +98,10 @@
           <el-input v-model="form.name" placeholder="请输入服务名称" />
         </el-form-item>
         <el-form-item label="服务分类" prop="category">
-          <el-select v-model="form.category" placeholder="请选择分类">
+          <el-select v-model="form.category" :placeholder="t('services.selectCategory')" allow-create filterable style="width:100%">
             <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
           </el-select>
+          <div style="font-size: 12px; color: #999; margin-top: 4px;">{{ t('services.categoryHint') }}</div>
         </el-form-item>
         <el-form-item label="账号/ARN" prop="identifier">
           <el-input v-model="form.identifier" placeholder="如：admin@example.com" />
@@ -109,9 +110,11 @@
           <el-input v-model="form.url" placeholder="https://..." />
         </el-form-item>
         <el-form-item label="所属部门" prop="deptId">
-          <el-select v-model="form.deptId" placeholder="请选择部门">
+          <el-select v-model="form.deptId" :placeholder="t('services.selectDept')" clearable>
+            <el-option :label="t('services.sharedService')" :value="null" />
             <el-option v-for="dept in departments" :key="dept.id" :label="dept.name" :value="dept.id" />
           </el-select>
+          <div style="font-size: 12px; color: #999; margin-top: 4px;">{{ t('services.deptHint') }}</div>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
@@ -164,7 +167,7 @@
           <el-input v-model="editForm.name" />
         </el-form-item>
         <el-form-item label="服务分类" prop="category">
-          <el-select v-model="editForm.category">
+          <el-select v-model="editForm.category" :placeholder="t('services.selectCategory')" allow-create filterable style="width:100%">
             <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
           </el-select>
         </el-form-item>
@@ -175,7 +178,8 @@
           <el-input v-model="editForm.url" />
         </el-form-item>
         <el-form-item label="所属部门" prop="deptId">
-          <el-select v-model="editForm.deptId">
+          <el-select v-model="editForm.deptId" :placeholder="t('services.selectDept')" clearable>
+            <el-option :label="t('services.sharedService')" :value="null" />
             <el-option v-for="dept in departments" :key="dept.id" :label="dept.name" :value="dept.id" />
           </el-select>
         </el-form-item>
@@ -287,22 +291,44 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="scanVisible" title="扫码录入 / 粘贴 otpauth URI" width="560px">
+    <el-dialog v-model="scanVisible" title="扫码录入" width="560px">
       <div class="scan-box">
-        <p class="hint">使用 Authenticator 应用导出二维码（otopauth URI），或直接粘贴字符串</p>
+        <p class="hint">{{ t('services.scanHint') }}</p>
         <el-form :model="scanForm" label-width="100px">
-          <el-form-item label="otpauth URI">
+          <el-form-item :label="t('services.scanMethod')">
+            <el-radio-group v-model="scanInputMethod">
+              <el-radio label="uri">{{ t('services.inputUri') }}</el-radio>
+              <el-radio label="image">{{ t('services.uploadQrCode') }}</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item v-if="scanInputMethod === 'uri'" :label="t('services.otpauthUri')">
             <el-input v-model="scanForm.uri" type="textarea" :rows="3" placeholder="otpauth://totp/..." />
           </el-form-item>
-          <el-form-item label="服务名称">
-            <el-input v-model="scanForm.name" placeholder="留空则自动从URI中提取" />
+          <el-form-item v-else :label="t('services.qrCodeImage')">
+            <el-upload
+              class="qr-upload"
+              :auto-upload="false"
+              :show-file-list="false"
+              accept="image/*"
+              :on-change="handleQrCodeChange"
+            >
+              <img v-if="qrCodeImageUrl" :src="qrCodeImageUrl" class="qr-preview-img" />
+              <div v-else class="qr-upload-placeholder">
+                <el-icon class="el-icon--upload"><Upload /></el-icon>
+                <span>{{ t('services.clickToUpload') }}</span>
+              </div>
+            </el-upload>
           </el-form-item>
-          <el-form-item label="所属部门">
-            <el-select v-model="scanForm.deptId" placeholder="请选择部门" style="width:100%">
+          <el-form-item :label="t('services.serviceName')">
+            <el-input v-model="scanForm.name" :placeholder="t('services.nameAutoFill')" />
+          </el-form-item>
+          <el-form-item :label="t('services.dept')">
+            <el-select v-model="scanForm.deptId" :placeholder="t('services.selectDept')" clearable style="width:100%">
+              <el-option :label="t('services.sharedService')" :value="null" />
               <el-option v-for="dept in departments" :key="dept.id" :label="dept.name" :value="dept.id" />
             </el-select>
           </el-form-item>
-          <el-form-item label="分类">
+          <el-form-item :label="t('services.category')">
             <el-select v-model="scanForm.category" style="width:100%">
               <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
             </el-select>
@@ -310,21 +336,24 @@
         </el-form>
         <div v-if="scanPreview" class="scan-preview">
           <el-divider />
-          <h4>解析结果</h4>
+          <h4>{{ t('services.parseResult') }}</h4>
           <el-descriptions :column="2" border size="small">
-            <el-descriptions-item label="Issuer">{{ scanPreview.issuer || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="Account">{{ scanPreview.account || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="Secret">{{ scanPreview.secret.substring(0, 8) }}...</el-descriptions-item>
-            <el-descriptions-item label="Algorithm">{{ scanPreview.algorithm }}</el-descriptions-item>
-            <el-descriptions-item label="Digits">{{ scanPreview.digits }}</el-descriptions-item>
-            <el-descriptions-item label="Period">{{ scanPreview.period }}s</el-descriptions-item>
+            <el-descriptions-item :label="t('services.issuer')">{{ scanPreview.issuer || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="t('services.account')">{{ scanPreview.account || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="t('services.secret')">{{ scanPreview.secret.substring(0, 8) }}...</el-descriptions-item>
+            <el-descriptions-item :label="t('services.algorithm')">{{ scanPreview.algorithm }}</el-descriptions-item>
+            <el-descriptions-item :label="t('services.digits')">{{ scanPreview.digits }}</el-descriptions-item>
+            <el-descriptions-item :label="t('services.period')">{{ scanPreview.period }}s</el-descriptions-item>
           </el-descriptions>
         </div>
       </div>
       <template #footer>
         <el-button @click="scanVisible=false">取消</el-button>
-        <el-button @click="previewScan">解析预览</el-button>
-        <el-button type="primary" :disabled="!scanPreview || !scanForm.deptId" @click="handleScanCreate">确认创建</el-button>
+        <el-button v-if="scanInputMethod === 'uri'" @click="previewScan">{{ t('services.parsePreview') }}</el-button>
+        <el-button v-else type="primary" :disabled="!qrCodeImageUrl || qrCodeLoading" @click="handleQrCodeParse">
+          {{ qrCodeLoading ? t('services.analyzing') : t('services.analyzeQrCode') }}
+        </el-button>
+        <el-button type="primary" :disabled="!scanPreview" @click="handleScanCreate">{{ t('services.confirmCreate') }}</el-button>
       </template>
     </el-dialog>
 
@@ -366,19 +395,38 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="batchGrantVisible" title="批量授权" width="400px">
-      <div>
-        <p>请选择要授权的用户（已选中 {{ batchGrantIds.length }} 人）</p>
-        <el-input v-model="batchGrantKeyword" placeholder="搜索用户名" style="width:100%;margin-bottom:12px" @keyup.enter="fetchBatchGrantUsers" />
-        <el-table :data="batchGrantUsers" v-loading="batchGrantLoading" border style="width:100%">
-          <el-table-column type="selection" :reserve-selection="true" width="55" @selection-change="onBatchGrantSelectionChange" />
-          <el-table-column prop="username" label="用户名" />
-          <el-table-column prop="deptName" label="部门" />
-        </el-table>
-      </div>
+    <el-dialog v-model="batchGrantVisible" title="批量授权" width="520px">
+      <el-tabs v-model="batchGrantTab">
+        <el-tab-pane label="按用户" name="user">
+          <div>
+            <p>请选择要授权的用户（已选中 {{ batchGrantIds.length }} 人）</p>
+            <el-input v-model="batchGrantKeyword" placeholder="搜索用户名" style="width:100%;margin-bottom:12px" @keyup.enter="fetchBatchGrantUsers" />
+            <el-table :data="batchGrantUsers" v-loading="batchGrantLoading" border style="width:100%">
+              <el-table-column type="selection" :reserve-selection="true" width="55" @selection-change="onBatchGrantSelectionChange" />
+              <el-table-column prop="username" label="用户名" />
+              <el-table-column prop="deptName" label="部门" />
+            </el-table>
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="按部门" name="dept">
+          <div>
+            <p>选择要授权的部门（已选 {{ batchGrantDeptIds.length }} 个）</p>
+            <el-table :data="departments" v-loading="deptsLoading" border @selection-change="onBatchGrantDeptChange" style="width:100%">
+              <el-table-column type="selection" width="55" />
+              <el-table-column prop="name" label="部门名称" />
+              <el-table-column prop="code" label="编码" width="120" />
+              <el-table-column label="成员数" width="100" :formatter="(r) => deptMemberCount[r.id] ?? '-' " />
+            </el-table>
+            <div style="margin-top:8px;color:#909399;font-size:12px">
+              系统将展开所选部门下所有<strong>已启用</strong>用户，重复授权自动跳过
+            </div>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
       <template #footer>
         <el-button @click="batchGrantVisible=false">取消</el-button>
-        <el-button type="primary" :disabled="batchGrantIds.length === 0" @click="handleBatchGrant">确认授权</el-button>
+        <el-button v-if="batchGrantTab === 'user'" type="primary" :disabled="batchGrantIds.length === 0" @click="handleBatchGrant">确认授权</el-button>
+        <el-button v-else type="primary" :disabled="batchGrantDeptIds.length === 0" :loading="batchGrantDeptLoading" @click="handleBatchGrantByDept">确认授权</el-button>
       </template>
     </el-dialog>
   </div>
@@ -389,9 +437,9 @@ import { ref, reactive, onMounted, h, computed } from 'vue'
 import { Search, Plus, Upload, Download, Camera } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import QRCode from 'qrcode'
-import { getServiceList, getService, getServiceSecret, createService, updateService, resetSecret, deleteService, getCategories, batchImport } from '@/api/service'
+import { getServiceList, getService, getServiceSecret, createService, updateService, resetSecret, deleteService, getCategories, addCategory, deleteCategory, batchImport } from '@/api/service'
 import { getAllDepts } from '@/api/dept'
-import { grantAccess, revokeAccess, batchGrant } from '@/api/grant'
+import { grantAccess, revokeAccess, batchGrant, batchGrantByDept } from '@/api/grant'
 import { getUserList } from '@/api/user'
 import { useI18n } from '@/i18n'
 
@@ -442,12 +490,15 @@ const importVisible = ref(false)
 const batchGrantVisible = ref(false)
 const scanVisible = ref(false)
 const scanPreview = ref(null)
-const scanForm = reactive({ uri: '', name: '', deptId: '', category: '其他' })
+const scanForm = reactive({ uri: '', name: '', deptId: null, category: '其他' })
+const scanInputMethod = ref('uri')
+const qrCodeImageUrl = ref('')
+const qrCodeLoading = ref(false)
 
 const formRef = ref(null)
 const editFormRef = ref(null)
-const form = reactive({ name: '', category: '', identifier: '', url: '', deptId: '', remark: '', secret: '', digits: 6, period: 30, algorithm: 'SHA1' })
-const editForm = reactive({ id: null, name: '', category: '', identifier: '', url: '', deptId: '', remark: '', status: 1, digits: 6, period: 30, algorithm: 'SHA1' })
+const form = reactive({ name: '', category: '', identifier: '', url: '', deptId: null, remark: '', secret: '', digits: 6, period: 30, algorithm: 'SHA1' })
+const editForm = reactive({ id: null, name: '', category: '', identifier: '', url: '', deptId: null, remark: '', status: 1, digits: 6, period: 30, algorithm: 'SHA1' })
 const secretInfo = reactive({ id: null, name: '', secret: '', digits: 6, period: 30, algorithm: 'SHA1' })
 const detailInfo = ref(null)
 const currentService = ref(null)
@@ -463,17 +514,20 @@ const batchGrantIds = ref([])
 const batchGrantUsers = ref([])
 const batchGrantLoading = ref(false)
 const batchGrantKeyword = ref('')
+const batchGrantTab = ref('user')
+const batchGrantDeptIds = ref([])
+const batchGrantDeptLoading = ref(false)
+const deptsLoading = ref(false)
+const deptMemberCount = ref({})
 
 const rules = {
   name: [{ required: true, message: '请输入服务名称', trigger: 'blur' }],
   category: [{ required: true, message: '请选择分类', trigger: 'change' }],
-  deptId: [{ required: true, message: '请选择部门', trigger: 'change' }],
 }
 
 const editRules = {
   name: [{ required: true, message: '请输入服务名称', trigger: 'blur' }],
   category: [{ required: true, message: '请选择分类', trigger: 'change' }],
-  deptId: [{ required: true, message: '请选择部门', trigger: 'change' }],
 }
 
 const fmt = (v) => v ? new Date(v).toLocaleString(locale.value === 'zh-CN' ? 'zh-CN' : 'en-US') : '-'
@@ -521,7 +575,7 @@ function handleSearch() { query.page = 1; fetchList() }
 function onSelectionChange(rows) { selectedIds.value = rows.map(r => r.id) }
 
 function resetForm() {
-  Object.assign(form, { name: '', category: '', identifier: '', url: '', deptId: '', remark: '', secret: '', digits: 6, period: 30, algorithm: 'SHA1' })
+  Object.assign(form, { name: '', category: '', identifier: '', url: '', deptId: null, remark: '', secret: '', digits: 6, period: 30, algorithm: 'SHA1' })
   formRef.value?.resetFields()
 }
 
@@ -529,6 +583,13 @@ function openCreateDialog() { resetForm(); createVisible.value = true }
 
 async function handleCreate() {
   if (!await formRef.value?.validate()) return
+  // 如果输入了新分类，自动保存（大小写不敏感比较；后端「已存在」静默吞）
+  if (form.category && !categories.value.some(c => c.toLowerCase() === form.category.toLowerCase())) {
+    try {
+      await addCategory(form.category)
+      categories.value.push(form.category)
+    } catch (e) { /* 已存在或后端拒绝均可忽略 */ }
+  }
   try {
     await createService(form)
     ElMessage.success(t('services.createSuccess'))
@@ -544,11 +605,14 @@ function openEditDialog(row) {
 
 async function handleEdit() {
   if (!await editFormRef.value?.validate()) return
+  // 编辑时不再自动 addCategory：updateService 直接接受任意 category 字符串；
+  // 本地 categories 缓存与后端 config 偶有不同步，自动同步会触发「分类已存在」误报
   try {
     await updateService(editForm.id, editForm)
     ElMessage.success(t('services.updateSuccess'))
     editVisible.value = false
     fetchList()
+    fetchCategories()
   } catch {}
 }
 
@@ -644,17 +708,23 @@ async function handleRevoke(row) {
 
 function openBatchGrantDialog() {
   batchGrantIds.value = []
+  batchGrantDeptIds.value = []
   batchGrantKeyword.value = ''
+  batchGrantTab.value = 'user'
   batchGrantVisible.value = true
   fetchBatchGrantUsers()
+  fetchDepartmentsForGrant()
 }
 
 function openScanDialog() {
   scanForm.uri = ''
   scanForm.name = ''
-  scanForm.deptId = ''
-  scanForm.category = '其他'
+  scanForm.deptId = null
+  scanForm.category = categories.value[0] || '其他'
   scanPreview.value = null
+  scanInputMethod.value = 'uri'
+  qrCodeImageUrl.value = ''
+  qrCodeLoading.value = false
   scanVisible.value = true
 }
 
@@ -701,6 +771,73 @@ function previewScan() {
   }
 }
 
+// 处理二维码图片上传
+function handleQrCodeChange(file) {
+  qrCodeImageUrl.value = URL.createObjectURL(file.raw)
+  scanPreview.value = null
+}
+
+// 解析二维码图片
+async function handleQrCodeParse() {
+  if (!qrCodeImageUrl.value) return
+  qrCodeLoading.value = true
+  try {
+    const img = new Image()
+    img.crossOrigin = 'Anonymous'
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      canvas.width = img.width
+      canvas.height = img.height
+      ctx.drawImage(img, 0, 0)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+
+      // 使用 jsQR 库解析二维码
+      if (typeof window.jsQR !== 'undefined') {
+        const code = window.jsQR(imageData.data, imageData.width, imageData.height)
+        if (code && code.data && code.data.startsWith('otpauth://')) {
+          scanForm.uri = code.data
+          previewScan()
+          ElMessage.success(t('services.qrCodeParseSuccess'))
+        } else if (code) {
+          ElMessage.error(t('services.qrCodeNotOtp'))
+        } else {
+          ElMessage.error(t('services.qrCodeNotFound'))
+        }
+      } else {
+        // 如果没有 jsQR，动态加载
+        const script = document.createElement('script')
+        script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'
+        script.onload = () => {
+          const code = window.jsQR(imageData.data, imageData.width, imageData.height)
+          if (code && code.data && code.data.startsWith('otpauth://')) {
+            scanForm.uri = code.data
+            previewScan()
+            ElMessage.success(t('services.qrCodeParseSuccess'))
+          } else if (code) {
+            ElMessage.error(t('services.qrCodeNotOtp'))
+          } else {
+            ElMessage.error(t('services.qrCodeNotFound'))
+          }
+        }
+        script.onerror = () => {
+          ElMessage.error(t('services.jsQrLoadFailed'))
+        }
+        document.head.appendChild(script)
+      }
+      qrCodeLoading.value = false
+    }
+    img.onerror = () => {
+      ElMessage.error(t('services.imageLoadFailed'))
+      qrCodeLoading.value = false
+    }
+    img.src = qrCodeImageUrl.value
+  } catch (err) {
+    ElMessage.error(t('services.parseError') + err.message)
+    qrCodeLoading.value = false
+  }
+}
+
 async function handleScanCreate() {
   try {
     const result = await scanCreate({ ...scanForm, name: scanForm.name || undefined })
@@ -733,6 +870,38 @@ async function handleBatchGrant() {
     batchGrantVisible.value = false
     fetchGrantUsers()
   } catch {}
+}
+
+function onBatchGrantDeptChange(rows) {
+  batchGrantDeptIds.value = rows.map(r => r.id)
+}
+
+async function fetchDepartmentsForGrant() {
+  deptsLoading.value = true
+  try {
+    const res = await getAllDepts()
+    departments.value = res.data || []
+    // 拉取每个部门的成员数（用 user/list filter）
+    const counts = {}
+    await Promise.all(departments.value.map(async (d) => {
+      try {
+        const r = await getUserList({ deptId: d.id, page: 1, pageSize: 1 })
+        counts[d.id] = r.data.total
+      } catch { counts[d.id] = 0 }
+    }))
+    deptMemberCount.value = counts
+  } finally { deptsLoading.value = false }
+}
+
+async function handleBatchGrantByDept() {
+  batchGrantDeptLoading.value = true
+  try {
+    const res = await batchGrantByDept({ deptIds: batchGrantDeptIds.value, accountId: currentService.value.id })
+    const { successCount, total, deptCount } = res.data
+    ElMessage.success(`按 ${deptCount} 个部门授权：成功 ${successCount}/${total} 人`)
+    batchGrantVisible.value = false
+    fetchGrantUsers()
+  } catch {} finally { batchGrantDeptLoading.value = false }
 }
 
 function downloadTemplate() {
@@ -847,4 +1016,9 @@ onMounted(async () => {
 .import-box { max-height: 400px; overflow-y: auto; }
 .preview-box { max-height: 200px; overflow-y: auto; }
 .scan-box h4 { margin: 0 0 12px 0; font-size: 14px; }
+.qr-upload { width: 200px; height: 200px; border: 1px dashed #d9d9d9; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.qr-upload:hover { border-color: #409eff; }
+.qr-upload-placeholder { text-align: center; color: #909399; }
+.qr-upload-placeholder .el-icon { font-size: 32px; margin-bottom: 8px; }
+.qr-preview-img { width: 200px; height: 200px; object-fit: contain; border-radius: 8px; }
 </style>

@@ -68,5 +68,6 @@ export async function checkServiceDeptAccess(request, serviceId) {
     where: { id: serviceId },
     select: { deptId: true },
   });
-  return service?.deptId === request.user.deptId;
+  // 部门管理员可以访问：1) 同部门的服务 2) 共享服务（deptId 为空）
+  return service?.deptId === request.user.deptId || service?.deptId === null;
 }

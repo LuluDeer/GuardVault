@@ -82,7 +82,19 @@ export async function login(request, reply) {
     clientIp, userAgent, result: 1,
   });
 
-  return success(reply, { token, expireAt, role: user.role, refreshToken, refreshExpireAt: refreshExpireAt.toISOString() });
+  return success(reply, {
+    token,
+    expireAt,
+    role: user.role,
+    refreshToken,
+    refreshExpireAt: refreshExpireAt.toISOString(),
+    user: {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      deptId: user.deptId ?? null,
+    },
+  });
 }
 
 /**

@@ -1,4 +1,5 @@
 import { prisma } from '../utils/prisma.js';
+import { emitGrantGranted, emitGrantRevoked } from './event-bus.js';
 
 export async function listGrants({
   page = 1,
@@ -56,7 +57,7 @@ export async function getGrant(userId, accountId) {
 }
 
 export async function grantAccess({ userId, accountId, grantedById, remark }) {
-  return prisma.accountGrant.create({
+  const grant = await prisma.accountGrant.create({
     data: {
       userId,
       accountId,
@@ -65,19 +66,23 @@ export async function grantAccess({ userId, accountId, grantedById, remark }) {
     },
     select: { id: true, userId: true, accountId: true },
   });
+  emitGrantGranted(Number(userId), [{ accountId: Number(accountId) }]);
+  return grant;
 }
 
 export async function revokeAccess(userId, accountId) {
-  return prisma.accountGrant.delete({
+  const result = await prisma.accountGrant.delete({
     where: { userId_accountId: { userId, accountId } },
   });
+  emitGrantRevoked(Number(userId), [{ accountId: Number(accountId) }]);
+  return result;
 }
 
 export async function batchGrant({ userIds, accountId, grantedById, remark }) {
   const results = [];
   for (const userId of userIds) {
     try {
-      const grant = await prisma.accountGrant.create({
+      await prisma.accountGrant.create({
         data: {
           userId: userId,
           accountId,
@@ -95,6 +100,11 @@ export async function batchGrant({ userIds, accountId, grantedById, remark }) {
       }
     }
   }
+  // 推事件给所有被影响用户
+  emitGrantGranted(
+    userIds.map(Number),
+    [{ accountId: Number(accountId) }],
+  );
   return results;
 }
 
@@ -114,7 +124,40 @@ export async function batchRevoke({ userIds, accountId }) {
       }
     }
   }
+  // 推事件给所有被影响用户
+  emitGrantRevoked(
+    userIds.map(Number),
+    [{ accountId: Number(accountId) }],
+  );
   return results;
+}
+
+/**
+ * 按部门批量授权：先展开部门下所有用户，再调用 batchGrant
+ */
+export async function batchGrantByDept({ deptIds, accountId, grantedById, remark }) {
+  if (!deptIds?.length) return { results: [], totalUsers: 0 };
+  const users = await prisma.systemUser.findMany({
+    where: { deptId: { in: deptIds.map(Number) }, status: 1 },
+    select: { id: true },
+  });
+  const userIds = users.map(u => u.id);
+  const results = await batchGrant({ userIds, accountId, grantedById, remark });
+  return { results, totalUsers: userIds.length };
+}
+
+/**
+ * 按部门批量撤销授权
+ */
+export async function batchRevokeByDept({ deptIds, accountId }) {
+  if (!deptIds?.length) return { results: [], totalUsers: 0 };
+  const users = await prisma.systemUser.findMany({
+    where: { deptId: { in: deptIds.map(Number) }, status: 1 },
+    select: { id: true },
+  });
+  const userIds = users.map(u => u.id);
+  const results = await batchRevoke({ userIds, accountId });
+  return { results, totalUsers: userIds.length };
 }
 
 export async function getUserAccessibleServices(userId) {

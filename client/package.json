@@ -4,9 +4,9 @@
   "description": "GuardVault PC Client",
   "main": "src/main/index.js",
   "scripts": {
-    "dev": "electron .",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win"
+    "dev": "NODE_ENV=development vite & VITE_DEV_SERVER_URL=http://localhost:5175 electron .",
+    "build": "vite build && electron-builder",
+    "build:win": "vite build && electron-builder --win"
   },
   "dependencies": {
     "axios": "^1.6.0",

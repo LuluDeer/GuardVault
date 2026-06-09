@@ -37,7 +37,7 @@ echo ================================================
 echo    服务已启动
 echo ================================================
 echo.
-echo 服务端 API: http://localhost:3000
+echo 服务端 API: http://localhost:3001
 echo Web 管理后台: http://localhost:5173
 echo.
 echo 按任意键退出...

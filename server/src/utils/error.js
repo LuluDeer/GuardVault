@@ -12,12 +12,79 @@ export class BizError extends Error {
   }
 }
 
+function formatZodErrorMessage(message) {
+  if (!message) return '参数校验失败';
+  
+  // 处理密码长度错误
+  if (message.includes('password') && message.includes('fewer than')) {
+    const minLength = message.match(/(\d+)/)?.[1];
+    return `密码长度不能少于${minLength || 6}个字符`;
+  }
+  
+  // 处理必填字段错误
+  if (message.includes('Required')) {
+    const field = message.replace(/["'\[\]]/g, '').split('.').pop();
+    const fieldMap = {
+      username: '用户名',
+      password: '密码',
+      role: '角色',
+      name: '名称',
+      category: '分类',
+      deptId: '部门',
+      identifier: '账号',
+      url: '地址',
+      secret: '密钥',
+    };
+    const fieldName = fieldMap[field] || field;
+    return `${fieldName}不能为空`;
+  }
+  
+  // 处理最小长度错误
+  if (message.includes('must NOT have fewer than')) {
+    const [, field, minLength] = message.match(/["']([^"']+)["'].*?(\d+)/) || [];
+    const fieldMap = {
+      username: '用户名',
+      password: '密码',
+    };
+    const fieldName = fieldMap[field] || field;
+    return `${fieldName}长度不能少于${minLength}个字符`;
+  }
+  
+  // 处理最大长度错误
+  if (message.includes('must NOT have more than')) {
+    const [, field, maxLength] = message.match(/["']([^"']+)["'].*?(\d+)/) || [];
+    const fieldMap = {
+      username: '用户名',
+      password: '密码',
+    };
+    const fieldName = fieldMap[field] || field;
+    return `${fieldName}长度不能超过${maxLength}个字符`;
+  }
+  
+  // 处理格式错误
+  if (message.includes('must be a valid')) {
+    const field = message.split('.').pop().replace(/["'\s]/g, '');
+    const fieldMap = {
+      email: '邮箱',
+      url: 'URL',
+    };
+    const fieldName = fieldMap[field] || field;
+    return `${fieldName}格式不正确`;
+  }
+  
+  // 默认处理：移除路径信息，只保留字段名和错误描述
+  const cleanMessage = message.replace(/(body|params|query)\./g, '');
+  return cleanMessage;
+}
+
 export function errorHandler(err, request, reply) {
   // zod 校验
   if (err instanceof ZodError) {
+    const originalMessage = err.errors?.[0]?.message || '参数校验失败';
+    const friendlyMessage = formatZodErrorMessage(originalMessage);
     return reply.code(400).send({
       code: ErrorCode.PARAM_ERROR,
-      message: err.errors?.[0]?.message || '参数校验失败',
+      message: friendlyMessage,
       data: null,
     });
   }
@@ -33,9 +100,15 @@ export function errorHandler(err, request, reply) {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
       const field = err.meta?.target?.[0] || '字段';
+      const fieldMap = {
+        username: '用户名',
+        name: '名称',
+        code: '编码',
+      };
+      const fieldName = fieldMap[field] || field;
       return reply.code(409).send({
         code: ErrorCode.USERNAME_EXISTS,
-        message: `${field}已存在`,
+        message: `${fieldName}已存在`,
         data: null,
       });
     }
