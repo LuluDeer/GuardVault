@@ -227,6 +227,17 @@ async function handleHover(id) {
 // 3) 倒计时归零会自动重拉（避免"密钥不刷新"的 bug）；
 // 4) 网络失败会在 2s 后重试一次。
 async function loadCode(id) {
+  // 未登录时不请求验证码
+  if (!auth.user) {
+    if (countdownTimers[id]) {
+      clearInterval(countdownTimers[id]);
+      delete countdownTimers[id];
+    }
+    delete codeMap.value[id];
+    delete countdownMap.value[id];
+    return;
+  }
+  
   if (inflightIds.value.has(id)) return;
   inflightIds.value.add(id);
   try {
@@ -432,6 +443,17 @@ onMounted(async () => {
   window.addEventListener('pointerdown', touchActivity, { passive: true });
   // 启动 5 分钟无操作自动退出
   startAutoLogoutWatcher();
+  // 路由进入时刷新服务列表（处理从部门管理创建服务后返回的场景）
+  router.beforeEach((to, from) => {
+    if (to.path === '/services' && from.path === '/dept') {
+      serviceStore.lastFetch = 0;
+      serviceStore.fetchServices().then(() => {
+        codeMap.value = {};
+        countdownMap.value = {};
+        loadAllCodes();
+      });
+    }
+  });
   // 授权变更实时推送：撤销立即清码、禁用操作按钮；新增仅解除禁用
   unsubscribeGrant = api.onGrantChanged((payload) => {
     serviceStore.handleGrantChanged(payload);
@@ -481,6 +503,8 @@ watch(searchQuery, () => {
 .services-page {
   padding: 16px;
   min-height: 100%;
+  max-height: 100vh;
+  overflow-y: auto;
 }
 
 .page-header {

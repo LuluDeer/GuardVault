@@ -96,8 +96,8 @@
 
     <!-- 授权管理弹窗 -->
     <div v-if="grantTarget" class="modal-mask" @click.self="grantTarget = null">
-      <div class="modal wide">
-        <div class="modal-header">授权管理 — {{ grantTarget.username }}</div>
+      <div class="modal-box wide">
+        <div class="modal-title">授权管理 — {{ grantTarget.username }}</div>
         <div class="modal-body">
           <div class="grant-toolbar">
             <input v-model="grantKeyword" type="text" placeholder="搜索服务..." class="search-input" />
@@ -134,16 +134,16 @@
             </tbody>
           </table>
         </div>
-        <div class="modal-footer">
-          <button class="ghost-btn" @click="grantTarget = null">关闭</button>
+        <div class="modal-actions">
+          <button class="modal-btn cancel" @click="grantTarget = null">关闭</button>
         </div>
       </div>
     </div>
 
     <!-- 创建用户弹窗 -->
     <div v-if="createMember" class="modal-mask" @click.self="createMember = false">
-      <div class="modal">
-        <div class="modal-header">创建用户{{ dept ? ` — ${dept.name}` : '' }}</div>
+      <div class="modal-box">
+        <div class="modal-title">创建用户{{ dept ? ` — ${dept.name}` : '' }}</div>
         <div class="modal-body">
           <div class="form-row">
             <label>用户名 *</label>
@@ -162,17 +162,17 @@
             <div v-if="isPureDeptAdmin" class="form-tip">部门管理员只能创建普通用户</div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="ghost-btn" @click="createMember = false">取消</button>
-          <button class="primary-btn" :disabled="saving" @click="submitCreateMember">创建</button>
+        <div class="modal-actions">
+          <button class="modal-btn cancel" @click="createMember = false">取消</button>
+          <button class="modal-btn confirm" :disabled="saving" @click="submitCreateMember">创建</button>
         </div>
       </div>
     </div>
 
     <!-- 代创建服务弹窗 -->
     <div v-if="createService" class="modal-mask" @click.self="createService = false">
-      <div class="modal">
-        <div class="modal-header">代创建服务</div>
+      <div class="modal-box">
+        <div class="modal-title">代创建服务</div>
         <div class="modal-body">
           <div class="form-row">
             <label>服务名 *</label>
@@ -219,9 +219,9 @@
             </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="ghost-btn" @click="createService = false">取消</button>
-          <button class="primary-btn" :disabled="saving" @click="submitCreateService">创建</button>
+        <div class="modal-actions">
+          <button class="modal-btn cancel" @click="createService = false">取消</button>
+          <button class="modal-btn confirm" :disabled="saving" @click="submitCreateService">创建</button>
         </div>
       </div>
     </div>
