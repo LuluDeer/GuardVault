@@ -1,4 +1,4 @@
-import { createRouter, createMemoryHistory } from 'vue-router';
+import { createRouter, createWebHashHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 
 const routes = [
@@ -19,6 +19,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/dept',
+    name: 'Department',
+    component: () => import('../views/Department.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
     path: '/service/:id',
     name: 'ServiceDetail',
     component: () => import('../views/ServiceDetail.vue'),
@@ -34,10 +40,11 @@ const routes = [
     path: '/',
     redirect: '/services',
   },
+
 ];
 
 const router = createRouter({
-  history: createMemoryHistory(),
+  history: createWebHashHistory(),
   routes,
 });
 
@@ -47,6 +54,11 @@ export function setupRouterGuard() {
 
     if (to.meta.requiresAuth && !auth.isLoggedIn) {
       next('/login');
+      return;
+    }
+    // 部门管理页：仅 dept_admin / super_admin 可进
+    if (to.meta.requiresAdmin && !['dept_admin', 'super_admin'].includes(auth.user?.role)) {
+      next('/services');
       return;
     }
     next();

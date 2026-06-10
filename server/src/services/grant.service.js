@@ -160,27 +160,34 @@ export async function batchRevokeByDept({ deptIds, accountId }) {
   return { results, totalUsers: userIds.length };
 }
 
-export async function getUserAccessibleServices(userId) {
+export async function getUserAccessibleServices(userId, userRole, userDeptId) {
+  const accountSelect = {
+    id: true,
+    name: true,
+    category: true,
+    identifier: true,
+    url: true,
+    remark: true,
+    icon: true,
+    status: true,
+    digits: true,
+    period: true,
+    algorithm: true,
+    deptId: true,
+  };
+
+  // super_admin: 返回所有启用的服务
+  if (userRole === 'super_admin') {
+    return prisma.serviceAccount.findMany({
+      where: { status: 1 },
+      select: accountSelect,
+    });
+  }
+
+  // dept_admin / 普通用户：走授权表（服务需由超管或管理员显式授权）
   const grants = await prisma.accountGrant.findMany({
     where: { userId },
-    include: {
-      account: {
-        select: {
-          id: true,
-          name: true,
-          category: true,
-          identifier: true,
-          url: true,
-          remark: true,
-          icon: true,
-          status: true,
-          digits: true,
-          period: true,
-          algorithm: true,
-          deptId: true,
-        },
-      },
-    },
+    include: { account: { select: accountSelect } },
   });
 
   return grants
@@ -188,7 +195,17 @@ export async function getUserAccessibleServices(userId) {
     .map(g => g.account);
 }
 
-export async function getUserAccessibleServiceIds(userId) {
+export async function getUserAccessibleServiceIds(userId, userRole, userDeptId) {
+  // super_admin: 返回所有启用的服务 id
+  if (userRole === 'super_admin') {
+    const accounts = await prisma.serviceAccount.findMany({
+      where: { status: 1 },
+      select: { id: true },
+    });
+    return accounts.map(a => a.id);
+  }
+
+  // dept_admin / 普通用户：走授权表（服务需由超管或管理员显式授权）
   const grants = await prisma.accountGrant.findMany({
     where: { userId },
     select: { accountId: true },

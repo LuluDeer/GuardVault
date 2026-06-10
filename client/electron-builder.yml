@@ -1,20 +1,28 @@
 appId: com.example.guardvault
 productName: GuardVault
 directories:
-  output: dist
+  output: release
 files:
   - "src/**/*"
+  - "dist/**/*"
   - "index.html"
   - "package.json"
+extraResources:
+  - from: "build/icon.ico"
+    to: "icon.ico"
 win:
   target:
     - target: nsis
       arch:
         - x64
   icon: build/icon.ico
-  requestedExecutionLevel: requireAdministrator
+  requestedExecutionLevel: asInvoker
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
+  deleteAppDataOnUninstall: false
+  uninstallDisplayName: GuardVault
+  include: build/installer.nsh
+

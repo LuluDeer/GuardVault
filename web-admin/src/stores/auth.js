@@ -9,6 +9,8 @@ export const useAuthStore = defineStore('auth', {
     refreshToken: localStorage.getItem('admin_refresh_token') || '',
     tokenExpireAt: localStorage.getItem('admin_token_expire_at') || '',
     role: localStorage.getItem('admin_role') || '',
+    userId: Number(localStorage.getItem('admin_user_id') || 0) || null,
+    deptId: Number(localStorage.getItem('admin_dept_id') || 0) || null,
   }),
   getters: {
     isLoggedIn: (state) => !!state.token,
@@ -22,11 +24,17 @@ export const useAuthStore = defineStore('auth', {
         this.refreshToken = res.data.refreshToken || ''
         this.tokenExpireAt = res.data.expireAt || ''
         this.role = res.data.role || ''
+        this.userId = res.data.id ?? null
+        this.deptId = res.data.deptId ?? null
         localStorage.setItem('admin_token', this.token)
         localStorage.setItem('admin_username', this.username)
         localStorage.setItem('admin_refresh_token', this.refreshToken)
         localStorage.setItem('admin_token_expire_at', this.tokenExpireAt)
         localStorage.setItem('admin_role', this.role)
+        if (this.userId) localStorage.setItem('admin_user_id', String(this.userId))
+        else localStorage.removeItem('admin_user_id')
+        if (this.deptId) localStorage.setItem('admin_dept_id', String(this.deptId))
+        else localStorage.removeItem('admin_dept_id')
         startTokenRefresh()
         return { ok: true }
       } catch (err) {
@@ -41,11 +49,15 @@ export const useAuthStore = defineStore('auth', {
       this.refreshToken = ''
       this.tokenExpireAt = ''
       this.role = ''
+      this.userId = null
+      this.deptId = null
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_username')
       localStorage.removeItem('admin_refresh_token')
       localStorage.removeItem('admin_token_expire_at')
       localStorage.removeItem('admin_role')
+      localStorage.removeItem('admin_user_id')
+      localStorage.removeItem('admin_dept_id')
     },
   },
 })

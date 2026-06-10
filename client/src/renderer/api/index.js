@@ -16,6 +16,19 @@ export const api = {
   getServiceCode: (id) => window.electronAPI.getServiceCode(id),
   reportCopy: (accountId) => window.electronAPI.reportCopy(accountId),
 
+  // ===== 客户端部门管理（部门管理员 / 超级管理员） =====
+  getMyDeptInfo: () => window.electronAPI.request({ method: 'GET', url: '/api/user/dept/info' }),
+  listDeptMembers: (params) => window.electronAPI.request({ method: 'GET', url: '/api/user/dept/members', params }),
+  appointDeptAdmin: (userId) => window.electronAPI.request({ method: 'POST', url: '/api/user/dept/appoint', data: { userId } }),
+  revokeDeptAdmin: (userId) => window.electronAPI.request({ method: 'POST', url: `/api/user/dept/revoke/${userId}`, data: {} }),
+  updateDeptMember: (userId, data) => window.electronAPI.request({ method: 'PATCH', url: `/api/user/dept/member/${userId}`, data }),
+  createDeptService: (data) => window.electronAPI.request({ method: 'POST', url: '/api/user/dept/service/create', data }),
+  listGrantableServices: (params) => window.electronAPI.request({ method: 'GET', url: '/api/user/dept/services', params }),
+  grantServiceToDeptMember: (userId, accountId, remark) => window.electronAPI.request({ method: 'POST', url: '/api/user/dept/service/grant', data: { userId, accountId, remark } }),
+  revokeServiceFromDeptMember: (userId, accountId) => window.electronAPI.request({ method: 'POST', url: '/api/user/dept/service/revoke', data: { userId, accountId } }),
+  createDeptMember: (data) => window.electronAPI.request({ method: 'POST', url: '/api/user/dept/member/create', data }),
+  listUserGrants: (userId) => window.electronAPI.request({ method: 'GET', url: `/api/user/dept/grants/${userId}` }),
+
   // 收藏（通过通用 request 走，无需新 IPC）
   listFavorites: () => window.electronAPI.request({ method: 'GET', url: '/api/user/favorite/list' }),
   addFavorite: (accountId) => window.electronAPI.request({ method: 'POST', url: '/api/user/favorite/add', data: { accountId } }),

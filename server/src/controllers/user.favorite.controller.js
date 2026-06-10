@@ -29,7 +29,7 @@ export async function add(request, reply) {
   const parsed = addSchema.safeParse(request.body);
   if (!parsed.success) return fail(reply, ErrorCode.PARAM_ERROR, parsed.error.errors[0]?.message);
   try {
-    const row = await favoriteService.addFavorite(userId, parsed.data.accountId);
+    const row = await favoriteService.addFavorite(userId, parsed.data.accountId, request.user.role);
     writeLog({
       operatorId: userId,
       operatorName: request.user.username,
@@ -50,11 +50,7 @@ export async function remove(request, reply) {
   const userId = request.user.id;
   const parsed = removeSchema.safeParse(request.body);
   if (!parsed.success) return fail(reply, ErrorCode.PARAM_ERROR, parsed.error.errors[0]?.message);
-  
-  if (!(await checkGrantAccess(userId, parsed.data.accountId))) {
-    return fail(reply, ErrorCode.FORBIDDEN, '无此服务访问权限');
-  }
-  
+
   const result = await favoriteService.removeFavorite(userId, parsed.data.accountId);
   if (result.count > 0) {
     writeLog({
@@ -75,10 +71,13 @@ export async function reorder(request, reply) {
   const userId = request.user.id;
   const parsed = reorderSchema.safeParse(request.body);
   if (!parsed.success) return fail(reply, ErrorCode.PARAM_ERROR, parsed.error.errors[0]?.message);
-  
-  for (const accountId of parsed.data.orderedAccountIds) {
-    if (!(await checkGrantAccess(userId, accountId))) {
-      return fail(reply, ErrorCode.FORBIDDEN, '无此服务访问权限');
+
+  // 超管拥有所有服务访问权，无需检查授权记录
+  if (request.user.role !== 'super_admin') {
+    for (const accountId of parsed.data.orderedAccountIds) {
+      if (!(await checkGrantAccess(userId, accountId))) {
+        return fail(reply, ErrorCode.FORBIDDEN, '无此服务访问权限');
+      }
     }
   }
   

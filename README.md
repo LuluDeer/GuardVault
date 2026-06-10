@@ -34,9 +34,22 @@ GuardVault/
 │
 ├── client/            # PC 客户端（Electron + Vue 3）
 │   ├── src/
-│   │   ├── main/        # 主进程（窗口、托盘、IPC、safeStorage）
-│   │   ├── preload/     # 预加载（contextBridge）
+│   │   ├── main/        # 主进程（窗口、托盘、IPC、safeStorage、局域网发现）
+│   │   │   ├── index.js          # 主进程入口
+│   │   │   ├── window-manager.js # 窗口创建/管理
+│   │   │   ├── tray.js           # 系统托盘 + 一键复制码
+│   │   │   ├── app-config.js     # 客户端本地配置（serverUrl / darkMode）
+│   │   │   ├── token-store.js    # safeStorage 安全存 Token
+│   │   │   ├── http.js           # axios HTTP 封装 + 1005 auth-expired 广播
+│   │   │   ├── discovery.js      # 局域网服务端扫描（/24 + 127.0.0.1）
+│   │   │   ├── autostart.js      # 开机自启（Win/macOS/Linux）
+│   │   │   ├── user-events.js    # 全局快捷键 / IPC 事件转发
+│   │   │   └── ipc-*.js          # 各模块 IPC handler 拆分
+│   │   ├── preload/     # 预加载（contextBridge 白名单 API）
 │   │   └── renderer/    # 渲染进程（Vue 3 + Pinia + vue-router）
+│   │       ├── views/   # Login / Config / Services / ServiceDetail / Password
+│   │       ├── stores/  # Pinia: auth / service
+│   │       └── api/     # 渲染端 API 封装
 │   └── index.html
 │
 ├── web-admin/         # Web 管理后台（Vue 3 + Element Plus）
@@ -63,6 +76,18 @@ GuardVault/
 | PC 客户端   | Electron + Vue 3 + Pinia + vue-router           | Node.js ≥ 18 |
 | Web 管理后台 | Vue 3 + Element Plus + axios + qrcode           | Node.js ≥ 18 |
 | 运维       | PM2 / systemd                                   | -            |
+
+## 📚 详细文档
+
+为了帮助您更好地理解、部署和使用 GuardVault，我们提供了详细的文档：
+
+- **[部署指南](docs/DEPLOYMENT.md)** - 生产环境部署完整流程，包括环境准备、数据库配置、防火墙设置、Nginx 反向代理、SSL/TLS 配置、备份恢复等
+- **[开发指南](docs/DEVELOPMENT.md)** - 开发环境搭建、项目结构详解、开发流程、数据库开发、API 开发、前端开发、客户端开发、测试方法等
+- **[使用指南](docs/USER_GUIDE.md)** - 管理员和普通用户的详细操作指南，包括部门管理、用户管理、服务管理、授权管理、审计报表、客户端使用等
+- **[打包指南](docs/BUILD.md)** - PC 客户端、Web 管理后台的打包与发布流程，包括多平台打包、代码签名、公证、版本管理等
+- **[故障排查指南](docs/TROUBLESHOOTING.md)** - 常见问题的诊断和解决方案，包括服务端问题、客户端问题、数据库问题、网络问题、性能问题等
+- **[防火墙配置指南](docs/FIREWALL.md)** - 详细的防火墙配置说明，包括 UFW、firewalld、云服务器安全组、端口冲突处理等
+- **[运维手册](docs/OPERATIONS.md)** - PM2 和 systemd 部署模式、Nginx 反向代理、数据库备份、升级流程等
 
 ## 🚀 快速开始
 
@@ -246,6 +271,8 @@ curl -X POST http://localhost:3001/api/admin/init \
 | 开机自启（Win/macOS/Linux）           | ✅      | —        |
 | 心跳检测 + 断线重连                     | ✅      | —        |
 | safeStorage 安全存 Token           | ✅      | —        |
+| 局域网服务端自动发现（/24 扫描 + 手动选择）     | ✅      | —        |
+| 登录页服务端在线状态指示 + 手动重测           | ✅      | —        |
 | 部门管理（增/删/改）                     | —      | ✅        |
 | 服务账号管理（增/删/改/重置密钥）              | —      | ✅        |
 | 服务录入：手动 / 扫码 / CSV 批量 / 谷歌OTP导入 | —      | ✅        |
@@ -277,7 +304,7 @@ curl -X POST http://localhost:3001/api/admin/init \
 - `GET  /api/user/service/:id`（服务详情）
 - `GET  /api/user/service/:id/code`（取实时 TOTP 码）
 - `POST /api/user/service/copy-report`（复制上报）
-- `GET  /api/health`
+- `GET  /api/health` / `GET /health`（健康检查 / 客户端局域网发现依赖此端点）
 
 ### 管理端
 
@@ -310,6 +337,19 @@ curl -X POST http://localhost:3001/api/admin/init \
 
 ## 📦 部署到 Linux 服务器
 
+详细的部署流程请参考 [部署指南](docs/DEPLOYMENT.md)，包括：
+
+- 环境准备（系统要求、软件安装）
+- 数据库配置（创建数据库、用户、优化配置）
+- 防火墙配置（UFW、firewalld、云服务器安全组）
+- 部署方式选择（Systemd、PM2、Docker）
+- Nginx 反向代理配置
+- SSL/TLS 配置（Let's Encrypt）
+- 数据库备份与恢复
+- 监控与日志
+- 升级流程
+
+快速部署：
 ```bash
 # 1. 克隆代码
 git clone <repo> /opt/guardvault && cd /opt/guardvault
@@ -331,10 +371,23 @@ sudo systemctl start guardvault-server guardvault-webadmin
 sudo ./scripts/deploy.sh status
 ```
 
-详细运维请见 [docs/OPERATIONS.md](docs/OPERATIONS.md)。
+更多运维信息请查看 [运维手册](docs/OPERATIONS.md)。
 
 ## 🛠️ 开发命令
 
+详细的开发指南请参考 [开发指南](docs/DEVELOPMENT.md)，包括：
+
+- 开发环境搭建（Node.js、MySQL、Git、VS Code）
+- 项目结构详解（服务端、客户端、Web 后台）
+- 开发流程（创建分支、开发功能、提交代码）
+- 数据库开发（数据模型设计、迁移、Prisma Studio）
+- API 开发（RESTful 设计、控制器、服务层）
+- 前端开发（Vue 3 组件、状态管理、路由）
+- 客户端开发（主进程、渲染进程、IPC 通信）
+- 测试方法（单元测试、端到端测试）
+- 代码规范（命名规范、提交规范）
+
+快速开发：
 ```bash
 # 服务端
 cd server
@@ -346,6 +399,7 @@ cd client
 npm run dev              # 启动 Electron 开发版
 npm run build:linux      # 构建 Linux 安装包
 npm run build:win        # 构建 Windows 安装包
+# 客户端主进程模块说明：[client/README.md](client/README.md)
 
 # Web 后台
 cd web-admin
@@ -357,7 +411,11 @@ npm run build            # 构建生产版本，产物在 dist/
 
 ### 1. 客户端连不上服务端
 
-登录前在"服务端地址"里填入正确的 `http://<ip>:3001`，先用浏览器访问 `/api/health` 验证可达。
+打开客户端 → 登录页（未配过 serverUrl 时会自动跳到配置页）。**配置页会自动扫描本机所有网卡所在 /24 网段（+ 127.0.0.1）**，约 2 秒内列出局域网内所有监听 `:3001` 并响应 `/health` 的 GuardVault 服务端，**直接点选**即可。
+
+- 没扫到？先在浏览器/终端确认服务端可达：`curl http://<server-ip>:3001/api/health`（或 `/health`）。
+- 跨网段（VPC/VPN/容器网络）扫描不到 → 直接在"服务端地址"里手填 `http://<ip>:3001`，回车。
+- 已配过 serverUrl 但想换一台 → 登录页右下角"配置服务端"按钮。
 
 ### 2. Prisma 报错 "Environment variable not found: DATABASE\_URL"
 

@@ -84,9 +84,9 @@ export const useServiceStore = defineStore('service', () => {
   // 添加收藏（乐观更新 + 失败回滚）
   async function addFavorite(id) {
     const before = new Map(favorites.value);
-    // 乐观：暂时放到末尾
+    // 乐观：暂时放到末尾（整体替换触发响应式）
     const nextSort = Math.max(0, ...Array.from(favorites.value.values()).map(v => v.sort)) + 1;
-    favorites.value.set(id, { sort: nextSort, pinnedAt: new Date().toISOString() });
+    favorites.value = new Map(before).set(id, { sort: nextSort, pinnedAt: new Date().toISOString() });
     try {
       const result = await api.addFavorite(id);
       if (result.code !== 0) {
@@ -106,7 +106,10 @@ export const useServiceStore = defineStore('service', () => {
   // 取消收藏
   async function removeFavorite(id) {
     const before = new Map(favorites.value);
-    favorites.value.delete(id);
+    // 整体替换触发响应式
+    const next = new Map(before);
+    next.delete(id);
+    favorites.value = next;
     try {
       const result = await api.removeFavorite(id);
       if (result.code !== 0) {

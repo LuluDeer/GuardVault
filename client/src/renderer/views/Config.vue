@@ -3,27 +3,27 @@
     <div class="config-card">
       <!-- 顶部：返回按钮 + 标题 -->
       <div class="header">
-        <button class="back-btn" @click="goBack" title="返回登录页">←</button>
-        <div class="title">服务端配置</div>
+        <button class="back-btn" @click="goBack" :title="t('config.back')">←</button>
+        <div class="title">{{ t('config.title') }}</div>
         <div style="width:32px"></div>
       </div>
-      <div class="desc">请配置 TOTP 服务端地址</div>
+      <div class="desc">{{ t('config.description') }}</div>
 
       <!-- 局域网发现结果 -->
       <div class="discover-section">
         <div class="discover-header">
-          <span class="discover-title">局域网内的服务端</span>
+          <span class="discover-title">{{ t('config.lanServers') }}</span>
           <button class="link-btn small" :disabled="scanning" @click="runDiscover">
-            {{ scanning ? '扫描中…' : '重新扫描' }}
+            {{ scanning ? t('common.scanning') : t('common.scanAgain') }}
           </button>
         </div>
 
         <div v-if="scanning && discovered.length === 0" class="discover-hint">
-          正在扫描本机所在 /24 网段…
+          {{ t('config.rescanning') }}
         </div>
 
         <div v-else-if="!scanning && discovered.length === 0" class="discover-hint warn">
-          未发现可用的服务端。可手动输入地址，或检查网络是否在同一局域网内。
+          {{ t('config.noServerFound') }}
         </div>
 
         <ul v-else class="discover-list">
@@ -37,26 +37,26 @@
             <div class="dot"></div>
             <div class="meta">
               <div class="url">{{ s.url }}</div>
-              <div class="latency">延迟 {{ s.latencyMs }} ms</div>
+              <div class="latency">{{ t('config.latency', { ms: s.latencyMs }) }}</div>
             </div>
-            <div v-if="serverUrl === s.url" class="badge">已选</div>
+            <div v-if="serverUrl === s.url" class="badge">{{ t('config.selected') }}</div>
           </li>
         </ul>
       </div>
 
       <!-- 手动输入 -->
       <div class="form-group">
-        <label>服务端地址（也可手动输入）</label>
+        <label>{{ t('config.serverLabel') }}</label>
         <input
           v-model="serverUrl"
           type="text"
-          placeholder="http://192.168.1.10:3001"
+          :placeholder="t('config.placeholder')"
           @keyup.enter="handleSave"
         />
       </div>
 
       <button :disabled="!serverUrl.trim() || loading" @click="handleSave">
-        {{ loading ? '配置中…' : '保存配置' }}
+        {{ loading ? t('common.configuring') : t('config.saveConfig') }}
       </button>
 
       <div v-if="error" class="error">{{ error }}</div>
@@ -68,10 +68,12 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { useI18n } from '../i18n';
 import api from '../api';
 
-const router = useRouter();
 const auth = useAuthStore();
+const router = useRouter();
+const { t } = useI18n();
 
 const serverUrl = ref('');
 const loading = ref(false);
@@ -120,19 +122,28 @@ async function handleSave() {
   if (!url) return;
   loading.value = true;
   error.value = '';
+  // 先读出旧配置，以便 probe 失败时回滚
+  const oldCfg = await api.getConfig();
   try {
+    // 临时把新 URL 写进配置，rebuildClient() 会用新 baseURL 重建 axios 实例
+    await api.setConfig({ ...oldCfg, serverUrl: url });
     // /health 直接返回 {status:'ok', time:'...'}，没用 ApiResponse 包装。
     // 兼容两种形态：{code:0, data:{status:'ok'}} 和 {status:'ok'}；只要网络没断、body 里有 status:'ok' 即可
     const probe = await api.request({ method: 'GET', url: '/health' });
     const ok = probe && (probe.status === 'ok' || (probe.code === 0 && probe.data?.status === 'ok'));
     if (!ok) {
-      error.value = '无法连接到该地址，请检查服务端是否启动';
+      // probe 失败，回滚旧配置
+      await api.setConfig(oldCfg);
+      error.value = t('config.cannotConnect');
       return;
     }
+    // probe 成功，正式落盘（setServerUrl 内部也会调 setConfig，保持 store 同步）
     await auth.setServerUrl(url);
     router.replace('/login');
   } catch (e) {
-    error.value = '无法连接到该地址，请检查网络和服务端';
+    // 网络异常，回滚旧配置
+    await api.setConfig(oldCfg).catch(() => {});
+    error.value = t('config.cannotConnectNetwork');
   } finally {
     loading.value = false;
   }

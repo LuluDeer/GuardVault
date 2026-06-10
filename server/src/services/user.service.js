@@ -1,10 +1,21 @@
 import { prisma } from '../utils/prisma.js';
 import bcrypt from 'bcryptjs';
 
+const VALID_ROLES = ['super_admin', 'dept_admin', 'user'];
+
+/**
+ * 校验 role 字段值是否合法
+ */
+export function isValidRole(role) {
+  return VALID_ROLES.includes(role);
+}
+
 /**
  * 获取用户列表（分页）
+ * @param {object} opts
+ * @param {string} [opts.role] - 可选，按角色过滤；不传则不限制
  */
-export async function listUsers({ page = 1, pageSize = 20, keyword, status, deptId }) {
+export async function listUsers({ page = 1, pageSize = 20, keyword, status, deptId, role }) {
   const where = {};
   if (keyword) {
     where.username = { contains: keyword };
@@ -15,8 +26,9 @@ export async function listUsers({ page = 1, pageSize = 20, keyword, status, dept
   if (deptId !== undefined && deptId !== null && deptId !== '') {
     where.deptId = Number(deptId);
   }
-  // 只返回普通用户
-  where.role = 'user';
+  if (role && isValidRole(role)) {
+    where.role = role;
+  }
 
   const [list, total] = await Promise.all([
     prisma.systemUser.findMany({
@@ -60,6 +72,19 @@ export async function listUsers({ page = 1, pageSize = 20, keyword, status, dept
 }
 
 /**
+ * 统计超级管理员数量（用于"最后一位超管"保护）
+ */
+export async function countSuperAdmins(excludeId = null) {
+  return prisma.systemUser.count({
+    where: {
+      role: 'super_admin',
+      status: 1,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+  });
+}
+
+/**
  * 根据ID查询用户（含密码哈希）
  */
 export async function findUserById(id) {
@@ -76,24 +101,25 @@ export async function findUserByUsername(username) {
 /**
  * 创建新用户
  */
-export async function createUser({ username, password, deptId }) {
+export async function createUser({ username, password, deptId, role = 'user' }) {
+  const finalRole = isValidRole(role) ? role : 'user';
   const hash = await bcrypt.hash(password, 12);
   return prisma.systemUser.create({
     data: {
       username,
       password: hash,
-      role: 'user',
+      role: finalRole,
       status: 1,
       ...(deptId ? { deptId: Number(deptId) } : {}),
     },
-    select: { id: true, username: true, deptId: true },
+    select: { id: true, username: true, deptId: true, role: true },
   });
 }
 
 /**
- * 更新用户信息（密码/状态）
+ * 更新用户信息（密码/状态/部门/角色）
  */
-export async function updateUser(id, { password, status, deptId }) {
+export async function updateUser(id, { password, status, deptId, role }) {
   const data = {};
   if (password !== undefined) {
     data.password = await bcrypt.hash(password, 12);
@@ -103,6 +129,12 @@ export async function updateUser(id, { password, status, deptId }) {
   }
   if (deptId !== undefined) {
     data.deptId = deptId === null || deptId === '' ? null : Number(deptId);
+  }
+  if (role !== undefined) {
+    if (!isValidRole(role)) {
+      throw new Error(`非法角色: ${role}`);
+    }
+    data.role = role;
   }
   await prisma.systemUser.update({ where: { id }, data });
 }

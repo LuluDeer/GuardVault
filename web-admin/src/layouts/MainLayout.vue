@@ -14,29 +14,8 @@
         :active-text-color="menuActive"
         router
       >
-        <el-menu-item index="/services">
-          <el-icon><Grid /></el-icon><span>{{ t('menu.services') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/import">
-          <el-icon><Upload /></el-icon><span>{{ t('menu.import') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/departments">
-          <el-icon><OfficeBuilding /></el-icon><span>{{ t('menu.departments') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/users">
-          <el-icon><User /></el-icon><span>{{ t('menu.users') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/totp">
-          <el-icon><Key /></el-icon><span>{{ t('menu.totp') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/logs">
-          <el-icon><Document /></el-icon><span>{{ t('menu.logs') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/audit">
-          <el-icon><DataAnalysis /></el-icon><span>{{ t('menu.audit') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/settings">
-          <el-icon><Setting /></el-icon><span>{{ t('menu.settings') }}</span>
+        <el-menu-item v-for="m in visibleMenus" :key="m.path" :index="m.path">
+          <el-icon><component :is="m.icon" /></el-icon><span>{{ m.label }}</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -111,6 +90,22 @@ const sidebarWidth = '210px'
 const menuBg = computed(() => theme.isDark ? '#0f172a' : '#fff')
 const menuText = computed(() => theme.isDark ? 'rgba(255,255,255,0.7)' : '#606266')
 const menuActive = computed(() => '#409eff')
+
+// 侧栏菜单：按当前用户角色过滤可见项
+const visibleMenus = computed(() => {
+  const role = auth.role
+  const all = [
+    { path: '/services',   label: t('menu.services'),    icon: Grid,            roles: ['super_admin', 'dept_admin'] },
+    { path: '/import',     label: t('menu.import'),      icon: Upload,          roles: ['super_admin', 'dept_admin'] },
+    { path: '/departments',label: t('menu.departments'), icon: OfficeBuilding,  roles: ['super_admin'] },
+    { path: '/users',      label: t('menu.users'),       icon: User,            roles: ['super_admin', 'dept_admin'] },
+    { path: '/totp',       label: t('menu.totp'),        icon: Key,             roles: ['super_admin', 'dept_admin'] },
+    { path: '/logs',       label: t('menu.logs'),        icon: Document,        roles: ['super_admin'] },
+    { path: '/audit',      label: t('menu.audit'),       icon: DataAnalysis,    roles: ['super_admin'] },
+    { path: '/settings',   label: t('menu.settings'),    icon: Setting,         roles: ['super_admin'] },
+  ]
+  return all.filter(m => !role || m.roles.includes(role))
+})
 
 async function handleCommand(cmd) {
   if (cmd === 'logout') {

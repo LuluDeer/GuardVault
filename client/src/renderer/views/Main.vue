@@ -4,31 +4,31 @@
       <div class="user-info">
         <span class="username">{{ auth.user?.username }}</span>
         <span class="status" :class="auth.online ? 'online' : 'offline'">
-          {{ auth.online ? '在线' : '离线' }}
+          {{ auth.online ? t('common.online') : t('common.offline') }}
         </span>
       </div>
       <div class="menu">
-        <button class="menu-btn" @click="auth.showPassword = true">修改密码</button>
-        <button class="menu-btn logout" @click="handleLogout">退出</button>
+        <button class="menu-btn" @click="auth.showPassword = true">{{ t('main.changePassword') }}</button>
+        <button class="menu-btn logout" @click="handleLogout">{{ t('main.logout') }}</button>
       </div>
     </div>
 
     <div class="content">
       <div class="code-box" :class="{ expired: countdown <= 5 }">
-        <div class="code">{{ totpCode || '------' }}</div>
+        <div class="code">{{ totpCode || t('main.codePlaceholder') }}</div>
         <div class="progress-bar">
           <div class="progress" :style="{ width: countdownPct + '%', background: progressColor }"></div>
         </div>
-        <div class="countdown">{{ countdown }}秒后刷新</div>
+        <div class="countdown">{{ t('main.countdownRefresh', { seconds: countdown }) }}</div>
       </div>
 
       <button class="copy-btn" :disabled="!totpCode || copying" @click="handleCopy">
-        {{ copying ? '已复制!' : '复制验证码' }}
+        {{ copying ? t('main.copied') : t('main.copyCode') }}
       </button>
     </div>
 
     <div class="footer">
-      <span>关闭窗口将最小化到托盘</span>
+      <span>{{ t('main.closeToTray') }}</span>
     </div>
   </div>
 </template>
@@ -36,9 +36,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import { useI18n } from '../i18n';
 import api from '../api';
 
 const auth = useAuthStore();
+const { t } = useI18n();
 const totpCode = ref('');
 const countdown = ref(30);
 const copying = ref(false);

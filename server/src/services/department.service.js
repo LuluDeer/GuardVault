@@ -127,7 +127,7 @@ export async function listDeptMembers(deptId, { role } = {}) {
     where,
     orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
     select: {
-      id: true, username: true, role: true, status: true,
+      id: true, username: true, role: true, status: true, deptId: true,
       createdAt: true, lastLoginTime: true,
       totpKey: { select: { isEnable: true } },
     },

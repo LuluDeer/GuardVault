@@ -4,6 +4,8 @@ import * as deptController from '../../controllers/admin.department.controller.j
 import { withPreHandler } from '../_shared.js';
 
 const adminAuth = withPreHandler([authenticate, authorize('super_admin', 'dept_admin')]);
+// 任命/撤销部门管理员：仅超级管理员
+const superAdminAuth = withPreHandler([authenticate, authorize('super_admin')]);
 
 export default async function deptRoutes(fastify) {
   fastify.get(
@@ -110,10 +112,10 @@ export default async function deptRoutes(fastify) {
     deptController.removeDeptMember,
   );
 
-  // ============ 部门管理员 ============
+  // ============ 部门管理员（仅 super_admin 可任免）============
   fastify.post(
     '/api/admin/dept/:id/admins',
-    adminAuth('Admin-Department', '任命部门管理员', {
+    superAdminAuth('Admin-Department', '任命部门管理员（仅超管）', {
       schema: {
         params: {
           type: 'object',
@@ -132,7 +134,7 @@ export default async function deptRoutes(fastify) {
 
   fastify.delete(
     '/api/admin/dept/:id/admins/:userId',
-    adminAuth('Admin-Department', '撤销部门管理员', {
+    superAdminAuth('Admin-Department', '撤销部门管理员（仅超管）', {
       schema: {
         params: {
           type: 'object',

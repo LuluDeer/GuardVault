@@ -19,12 +19,14 @@ export async function listFavorites(userId) {
  * - 若已收藏则忽略（不更新 pinnedAt）
  * - sort 自动追加到末尾
  */
-export async function addFavorite(userId, accountId) {
-  // 检查授权
-  const grant = await prisma.accountGrant.findUnique({
-    where: { userId_accountId: { userId, accountId } },
-  });
-  if (!grant) throw new Error('无此服务访问权限');
+export async function addFavorite(userId, accountId, role) {
+  // 超管拥有所有服务访问权，无需检查授权记录
+  if (role !== 'super_admin') {
+    const grant = await prisma.accountGrant.findUnique({
+      where: { userId_accountId: { userId, accountId } },
+    });
+    if (!grant) throw new Error('无此服务访问权限');
+  }
 
   // 找到当前最大 sort
   const max = await prisma.accountFavorite.aggregate({

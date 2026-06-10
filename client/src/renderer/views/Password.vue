@@ -1,46 +1,46 @@
 <template>
   <div class="password-wrap">
     <div class="password-card">
-      <div class="title">修改密码</div>
+      <div class="title">{{ t('password.title') }}</div>
       
       <div class="form-group">
-        <label>原密码</label>
+        <label>{{ t('password.oldPassword') }}</label>
         <input 
           v-model="oldPassword" 
           type="password" 
-          placeholder="请输入原密码"
+          :placeholder="t('password.enterOldPassword')"
           @keyup.enter="handleSubmit"
         />
       </div>
       
       <div class="form-group">
-        <label>新密码</label>
+        <label>{{ t('password.newPassword') }}</label>
         <input 
           v-model="newPassword" 
           type="password" 
-          placeholder="请输入新密码"
+          :placeholder="t('password.enterNewPassword')"
           @keyup.enter="handleSubmit"
         />
       </div>
       
       <div class="form-group">
-        <label>确认密码</label>
+        <label>{{ t('password.confirmPassword') }}</label>
         <input 
           v-model="confirmPassword" 
           type="password" 
-          placeholder="请再次输入新密码"
+          :placeholder="t('password.enterConfirmPassword')"
           @keyup.enter="handleSubmit"
         />
       </div>
       
       <button :disabled="loading" @click="handleSubmit">
-        {{ loading ? '修改中...' : '确认修改' }}
+        {{ loading ? t('password.modifying') : t('password.confirmModify') }}
       </button>
       
       <div v-if="error" class="error">{{ error }}</div>
-      <div v-if="showSuccess" class="success">密码修改成功</div>
+      <div v-if="showSuccess" class="success">{{ t('password.success') }}</div>
       
-      <button class="back-btn" @click="goBack">返回</button>
+      <button class="back-btn" @click="goBack">{{ t('password.back') }}</button>
     </div>
   </div>
 </template>
@@ -49,10 +49,12 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { useI18n } from '../i18n';
 import api from '../api';
 
 const auth = useAuthStore();
 const router = useRouter();
+const { t } = useI18n();
 const showSuccess = ref(false);
 const oldPassword = ref('');
 const newPassword = ref('');
@@ -61,15 +63,15 @@ const loading = ref(false);
 const error = ref('');
 
 async function handleSubmit() {
-  if (!oldPassword.value) { error.value = '请输入原密码'; return; }
-  if (!newPassword.value) { error.value = '请输入新密码'; return; }
-  if (newPassword.value.length < 8) { error.value = '新密码至少8位'; return; }
+  if (!oldPassword.value) { error.value = t('password.pleaseEnterOldPassword'); return; }
+  if (!newPassword.value) { error.value = t('password.pleaseEnterNewPassword'); return; }
+  if (newPassword.value.length < 8) { error.value = t('password.newPasswordMin8'); return; }
   if (!/[a-zA-Z]/.test(newPassword.value) || !/[0-9]/.test(newPassword.value)) {
-    error.value = '新密码必须同时包含字母和数字';
+    error.value = t('password.newPasswordLettersAndDigits');
     return;
   }
   if (newPassword.value !== confirmPassword.value) {
-    error.value = '两次输入的密码不一致';
+    error.value = t('password.passwordMismatch');
     return;
   }
   loading.value = true;
@@ -78,16 +80,16 @@ async function handleSubmit() {
     const result = await api.changePassword(oldPassword.value, newPassword.value);
     if (result.code === 0) {
       showSuccess.value = true;
-      // 主进程已清token，1.5秒后跳登录
+      // 主进程已清 token，1.5 秒后跳登录
       setTimeout(async () => {
         await auth.logout();
         router.replace('/login');
       }, 1500);
     } else {
-      error.value = result.message || '修改失败';
+      error.value = result.message || t('password.modifyFailed');
     }
   } catch {
-    error.value = '网络连接失败';
+    error.value = t('password.networkError');
   } finally {
     loading.value = false;
   }

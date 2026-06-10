@@ -32,6 +32,7 @@ import userTotpRoutes from './routes/user/totp.js';
 import userServiceRoutes from './routes/user/service.js';
 import userFavoriteRoutes from './routes/user/favorite.js';
 import userEventRoutes from './routes/user/events.js';
+import userDeptRoutes from './routes/user/dept.js';
 
 // 启动前强校验环境变量，缺一即拒启
 assertEnv();
@@ -172,6 +173,7 @@ await fastify.register(userTotpRoutes);
 await fastify.register(userServiceRoutes);
 await fastify.register(userFavoriteRoutes);
 await fastify.register(userEventRoutes);
+await fastify.register(userDeptRoutes);
 
 // 启动日志清理定时任务（每天凌晨 3 点，可通过 LOG_CLEANUP_CRON_HOUR 调整）
 startLogCleanupTask(fastify.log);

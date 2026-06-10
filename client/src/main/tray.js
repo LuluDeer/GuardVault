@@ -12,17 +12,34 @@ let getConfig = null;
 let cache = { services: [], codes: {}, refreshTimer: null, user: null };
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../../public/icon_512.png');
-  try {
-    tray = new Tray(iconPath);
-  } catch (error) {
-    console.warn('Failed to load icon:', error.message);
-    
+  // Windows 托盘必须用 .ico 格式，Linux/macOS 用 PNG
+  const isWin = process.platform === 'win32';
+  const iconFile = isWin ? 'icon.ico' : 'icon_512.png';
+  // 打包后 build/ 目录在 extraResources 里，开发时相对 __dirname 走两级到项目根
+  const candidates = [
+    path.join(__dirname, '../../build/', iconFile),
+    path.join(process.resourcesPath || '', iconFile),
+    path.join(__dirname, '../../public/icon_512.png'), // 最终兜底
+  ];
+
+  let loaded = false;
+  for (const p of candidates) {
     try {
-      const nativeImage = require('electron').nativeImage;
+      if (!fs.existsSync(p)) continue;
+      tray = new Tray(p);
+      loaded = true;
+      break;
+    } catch (e) {
+      console.warn('Tray icon load failed:', p, e.message);
+    }
+  }
+
+  if (!loaded) {
+    try {
+      const { nativeImage } = require('electron');
       tray = new Tray(nativeImage.createEmpty());
-    } catch (fallbackError) {
-      console.error('Failed to create tray with fallback icon:', fallbackError.message);
+    } catch (e) {
+      console.error('Failed to create tray:', e.message);
       return null;
     }
   }

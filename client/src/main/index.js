@@ -6,6 +6,7 @@ const ipcAuth = require('./ipc-auth');
 const ipcBusiness = require('./ipc-business');
 const ipcDiscovery = require('./ipc-discovery');
 const tray = require('./tray');
+const overlay = require('./overlay');
 const tokenStore = require('./token-store');
 const { getConfig } = require('./app-config');
 const windowManager = require('./window-manager');

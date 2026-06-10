@@ -2,20 +2,21 @@
   <div class="services-page">
     <div class="page-header">
       <div class="user-info">
-        <span class="hi">已登录</span>
-        <span class="username">{{ auth.user?.username || '未登录' }}</span>
+        <span class="hi">{{ t('services.hi') }}</span>
+        <span class="username">{{ auth.user?.username || t('services.notLoggedIn') }}</span>
         <span class="status" :class="auth.online ? 'online' : 'offline'">
-          {{ auth.online ? '在线' : '离线' }}
+          {{ auth.online ? t('common.online') : t('common.offline') }}
         </span>
       </div>
       <div class="header-actions">
-        <button class="ghost-btn" @click="$router.push('/password')">修改密码</button>
-        <button class="ghost-btn danger" @click="handleLogout">退出登录</button>
+        <button v-if="isAdmin" class="ghost-btn primary" @click="$router.push('/dept')">{{ t('services.deptManagement') }}</button>
+        <button class="ghost-btn" @click="$router.push('/password')">{{ t('services.changePassword') }}</button>
+        <button class="ghost-btn danger" @click="handleLogout">{{ t('services.logout') }}</button>
       </div>
     </div>
 
     <div class="search-bar">
-      <input v-model="searchQuery" type="text" placeholder="搜索服务..." class="search-input" @keyup.enter="handleSearch" />
+      <input v-model="searchQuery" type="text" :placeholder="t('services.searchPlaceholder')" class="search-input" @keyup.enter="handleSearch" />
       <button class="refresh-btn" @click="handleRefresh" :disabled="loading">
         <svg v-if="!loading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -28,7 +29,7 @@
 
     <div v-if="loading" class="loading">
       <div class="spinner"></div>
-      <span>加载中...</span>
+      <span>{{ t('common.loading') }}</span>
     </div>
 
     <div v-else-if="services.length === 0" class="empty">
@@ -38,7 +39,7 @@
         <rect x="14" y="14" width="7" height="7"/>
         <rect x="3" y="14" width="7" height="7"/>
       </svg>
-      <p>暂无服务，请联系管理员授权</p>
+      <p>{{ t('services.empty') }}</p>
     </div>
 
     <div v-else class="service-list">
@@ -61,25 +62,25 @@
             </div>
             <div class="service-info">
               <div class="service-name">{{ service.name }}</div>
-              <div class="service-identifier">{{ service.identifier || '无账号信息' }}</div>
+              <div class="service-identifier">{{ service.identifier || t('services.noAccountInfo') }}</div>
             </div>
             <div class="service-code">
               <div v-if="serviceStore.isRevoked(service.id)" class="code-placeholder revoked">
-                权限已撤销
+                {{ t('services.revoked') }}
               </div>
-              <div v-else-if="codeMap[service.id]" class="code-display" :class="{ 'is-loading': inflightIds.has(service.id) }" @click.stop="handleCopy(service)" title="点击复制">
+              <div v-else-if="codeMap[service.id]" class="code-display" :class="{ 'is-loading': inflightIds.has(service.id) }" @click.stop="handleCopy(service)" :title="t('main.copyCode')">
                 <span class="code-text">{{ codeMap[service.id] }}</span>
                 <span class="countdown" :class="{ warning: (countdownMap[service.id] ?? 30) <= 10 }">
                   {{ countdownMap[service.id] ?? 30 }}s
                 </span>
               </div>
-              <div v-else class="code-placeholder">点击获取</div>
+              <div v-else class="code-placeholder">{{ t('services.clickToGet') }}</div>
             </div>
             <div v-if="!serviceStore.isRevoked(service.id)" class="service-action">
               <button
                 class="fav-btn"
                 :class="{ active: isFavorite(service.id) }"
-                :title="isFavorite(service.id) ? '取消收藏' : '收藏到快捷键'"
+                :title="isFavorite(service.id) ? t('services.unfavorite') : t('services.favoriteToShortcut')"
                 @click.stop="handleToggleFav(service)"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" :fill="isFavorite(service.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
@@ -99,7 +100,7 @@
             <button
               v-if="serviceStore.isRevoked(service.id)"
               class="remove-btn"
-              title="从我的列表中移除"
+              :title="t('services.removeFromList')"
               @click.stop="handleRemove(service)"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -119,11 +120,11 @@
     <!-- 自定义中文确认弹窗（避免 Electron 原生 confirm 显示英文 OK） -->
     <div v-if="showLogoutModal" class="modal-mask" @click.self="cancelLogout">
       <div class="modal-box">
-        <div class="modal-title">退出登录</div>
-        <div class="modal-body">确定要退出登录吗？</div>
+        <div class="modal-title">{{ t('services.logout') }}</div>
+        <div class="modal-body">{{ t('services.logoutConfirm') }}</div>
         <div class="modal-actions">
-          <button class="modal-btn cancel" @click="cancelLogout">取消</button>
-          <button class="modal-btn confirm" @click="confirmLogout">确认</button>
+          <button class="modal-btn cancel" @click="cancelLogout">{{ t('services.logoutCancel') }}</button>
+          <button class="modal-btn confirm" @click="confirmLogout">{{ t('services.logoutConfirmBtn') }}</button>
         </div>
       </div>
     </div>
@@ -135,11 +136,14 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useServiceStore } from '../stores/service.js';
 import { useAuthStore } from '../stores/auth.js';
+import { useI18n } from '../i18n';
 import api from '../api/index.js';
 
 const router = useRouter();
 const serviceStore = useServiceStore();
 const auth = useAuthStore();
+const { t } = useI18n();
+const isAdmin = computed(() => ['dept_admin', 'super_admin'].includes(auth.user?.role));
 
 const searchQuery = ref('');
 const codeMap = ref({});

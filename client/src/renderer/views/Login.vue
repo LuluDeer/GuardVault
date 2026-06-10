@@ -7,51 +7,51 @@
       <div class="server-status" :class="{ online: serverOnline, offline: !serverOnline }">
         <span class="status-dot"></span>
         <span class="status-text">
-          <template v-if="checking">检测中…</template>
-          <template v-else-if="serverOnline">服务端在线</template>
-          <template v-else>服务端离线</template>
+          <template v-if="checking">{{ t('login.checking') }}</template>
+          <template v-else-if="serverOnline">{{ t('login.serverOnline') }}</template>
+          <template v-else>{{ t('login.serverOffline') }}</template>
         </span>
-        <span class="status-url" :title="currentServerUrl || auth.serverUrl">{{ currentServerUrl || auth.serverUrl || '未配置' }}</span>
-        <button class="status-refresh" :disabled="checking" @click="checkServer" title="重新检测">↻</button>
+        <span class="status-url" :title="currentServerUrl || auth.serverUrl">{{ currentServerUrl || auth.serverUrl || t('login.serverNotConfigured') }}</span>
+        <button class="status-refresh" :disabled="checking" @click="checkServer" :title="t('login.recheck')">↻</button>
       </div>
 
       <div v-if="auth.tokenExpired" class="warning">
-        Token 已失效，请重新登录
+        {{ t('login.tokenExpired') }}
       </div>
 
       <div class="form-group">
-        <label>用户名</label>
-        <input v-model="username" type="text" placeholder="请输入用户名"
+        <label>{{ t('login.username') }}</label>
+        <input v-model="username" type="text" :placeholder="t('login.enterUsernamePlaceholder')"
                autocomplete="username" @keyup.enter="handleLogin" />
       </div>
 
       <div class="form-group">
-        <label>密码</label>
-        <input v-model="password" type="password" placeholder="请输入密码"
+        <label>{{ t('login.password') }}</label>
+        <input v-model="password" type="password" :placeholder="t('login.enterPasswordPlaceholder')"
                autocomplete="current-password" @keyup.enter="handleLogin" />
       </div>
 
       <div v-if="showTotpInput" class="form-group">
-        <label>TOTP 验证码</label>
-        <input v-model="totpCode" type="text" placeholder="请输入6位动态验证码"
+        <label>{{ t('login.totp') }}</label>
+        <input v-model="totpCode" type="text" :placeholder="t('login.enterTotpPlaceholder')"
                maxlength="6" @keyup.enter="handleLogin" />
       </div>
 
       <div class="checkbox-group">
         <label class="checkbox">
           <input type="checkbox" v-model="rememberMe" />
-          <span>记住用户名</span>
+          <span>{{ t('login.remember') }}</span>
         </label>
       </div>
 
       <button :disabled="auth.loading" @click="handleLogin">
-        {{ auth.loading ? '登录中...' : '登录' }}
+        {{ auth.loading ? t('login.loggingIn') : t('login.login') }}
       </button>
 
       <div v-if="error" class="error">{{ error }}</div>
 
       <div class="footer">
-        <button class="link-btn" @click="showConfig">配置服务端</button>
+        <button class="link-btn" @click="showConfig">{{ t('login.configureServer') }}</button>
       </div>
     </div>
   </div>
@@ -61,10 +61,12 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { useI18n } from '../i18n';
 import api from '../api';
 
 const router = useRouter();
 const auth = useAuthStore();
+const { t } = useI18n();
 const username = ref('');
 const password = ref('');
 const rememberMe = ref(false);
@@ -114,16 +116,16 @@ async function handleLogin() {
 
   if (!showTotpInput.value) {
     if (!username.value.trim() || !password.value) {
-      error.value = '请输入用户名和密码';
+      error.value = t('login.pleaseEnterUsername') + ' ' + t('login.pleaseEnterPassword');
       return;
     }
   } else {
     if (!totpCode.value.trim()) {
-      error.value = '请输入TOTP验证码';
+      error.value = t('login.pleaseEnterTotp');
       return;
     }
     if (totpCode.value.length !== 6) {
-      error.value = '验证码必须为6位数字';
+      error.value = t('login.totpMustBe6Digits');
       return;
     }
   }

@@ -27,7 +27,7 @@ export async function login(request, reply) {
 
   const user = await findUserByUsername(username);
 
-  if (!user || user.role !== 'user') {
+  if (!user || !['user', 'dept_admin', 'super_admin'].includes(user.role)) {
     return fail(reply, ErrorCode.WRONG_CREDENTIALS, '用户名或密码错误');
   }
 
@@ -97,7 +97,7 @@ export async function login(request, reply) {
 
     const tokenHours = parseInt(await getConfig('token_expire_hours') || '2', 10);
     const expireSeconds = tokenHours * 3600;
-    const token = signToken({ id: user.id, username: user.username, role: user.role }, expireSeconds);
+    const token = signToken({ id: user.id, username: user.username, role: user.role, deptId: user.deptId ?? null }, expireSeconds);
     const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
 
     await writeLog({
@@ -115,7 +115,7 @@ export async function login(request, reply) {
 
   const tokenHours = parseInt(await getConfig('token_expire_hours') || '2', 10);
   const expireSeconds = tokenHours * 3600;
-  const token = signToken({ id: user.id, username: user.username, role: user.role }, expireSeconds);
+  const token = signToken({ id: user.id, username: user.username, role: user.role, deptId: user.deptId ?? null }, expireSeconds);
   const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
 
   await writeLog({

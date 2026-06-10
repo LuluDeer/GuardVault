@@ -7,14 +7,18 @@ import { success, fail, ErrorCode } from '../utils/response.js';
 const VIEW_CODE_DEBOUNCE = new Map();
 
 export async function getMyServices(request, reply) {
-  const services = await grantService.getUserAccessibleServices(request.user.id);
+  const services = await grantService.getUserAccessibleServices(
+    request.user.id,
+    request.user.role,
+    request.user.deptId,
+  );
   return success(reply, services);
 }
 
 export async function getServiceCode(request, reply) {
   const id = parseInt(request.params.id, 10);
 
-  const accessibleIds = await grantService.getUserAccessibleServiceIds(request.user.id);
+  const accessibleIds = await grantService.getUserAccessibleServiceIds(request.user.id, request.user.role, request.user.deptId);
   if (!accessibleIds.includes(id)) {
     await writeLog({
       operatorId: request.user.id,
@@ -68,7 +72,11 @@ export async function getServiceCode(request, reply) {
 export async function getServiceDetail(request, reply) {
   const id = parseInt(request.params.id, 10);
 
-  const accessibleIds = await grantService.getUserAccessibleServiceIds(request.user.id);
+  const accessibleIds = await grantService.getUserAccessibleServiceIds(
+    request.user.id,
+    request.user.role,
+    request.user.deptId,
+  );
   if (!accessibleIds.includes(id)) {
     return fail(reply, ErrorCode.FORBIDDEN, '无权限访问此服务');
   }
@@ -91,7 +99,11 @@ export async function reportCopy(request, reply) {
   }
 
   const id = parsed.data.accountId;
-  const accessibleIds = await grantService.getUserAccessibleServiceIds(request.user.id);
+  const accessibleIds = await grantService.getUserAccessibleServiceIds(
+    request.user.id,
+    request.user.role,
+    request.user.deptId,
+  );
   if (!accessibleIds.includes(id)) {
     return fail(reply, ErrorCode.FORBIDDEN, '无权限');
   }

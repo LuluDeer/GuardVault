@@ -104,3 +104,47 @@ sudo systemctl restart guardvault-server guardvault-webadmin
 | 数据库连不上 | `mysql -uadmin -p25821250 -h127.0.0.1 guardvault_db -e "select 1"` |
 | 客户端报"Token 过期" | 用户主动登出或吊销列表触发；让用户重新登录 |
 | 内存持续上涨 | 检查 `prisma` 连接是否被回收；必要时重启服务 |
+
+## 客户端连接故障排查
+
+客户端通过 `app-config` 里的 `serverUrl` 找到服务端，并通过 `GET /health` 做可用性探测（自动发现也用同一端点）。
+
+### 现象一：登录页"服务端离线"红点常亮
+
+1. 确认客户端和服务端互通：
+   ```bash
+   # 从客户端机器上
+   curl -m 3 http://<server-ip>:3001/health
+   # 期望输出：{"status":"ok","time":"..."}
+   ```
+2. 确认服务端 `3001` 端口在监听：
+   ```bash
+   ss -lntp | grep 3001
+   ```
+3. 防火墙放行：云服务商安全组 / 本机 `firewalld` / `ufw` 都需要放行 TCP 3001。
+4. 客户端点登录页右上 `↻` 按钮重新探测一次。
+
+### 现象二：配置页"局域网内的服务端"列表为空
+
+1. 扫描器只覆盖 **本机 IPv4 网卡所在 /24 + 127.0.0.1**，每次探测 `:3001`，超时 500ms。
+2. 跨网段（VPC / VPN / Docker bridge / 容器网络）扫不到很正常，**直接在输入框手填** `http://<ip>:3001` 即可。
+3. 同一网段也扫不到：
+   - 服务端 `HOST` 是否绑定 `0.0.0.0`（`server/.env` 里 `HOST=0.0.0.0`），不能是 `127.0.0.1`。
+   - 看服务端日志 `logs/server.log` 有没有收到扫描连接。
+4. 配置页"重新扫描"按钮可手动触发一次。
+
+### 现象三：保存配置时提示"无法连接到该地址"
+
+`handleSave` 会先打一次 `/health`，通过后才落盘。失败原因多为：
+
+- `serverUrl` 写成了 `https://` 但服务端没配 TLS（统一用 `http://`）。
+- 端口号漏掉（`http://192.168.1.10` 应为 `:3001`）。
+- 服务端进程没启动或刚崩，看 `pm2 status` / `systemctl status guardvault-server`。
+
+### 现象四：能登录但登录后"在线/离线"状态和实际不符
+
+主进程有 15s 周期心跳（`/health`）。如果服务器频繁切换在线状态：
+
+- 看 `logs/electron.log`，搜索 `net:online` / `net:offline` 时间线。
+- 改 `serverUrl` 后没生效：保存后已经 `rebuildClient()` 重建 axios 实例，下次请求即生效。
+
