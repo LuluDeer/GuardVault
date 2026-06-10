@@ -141,7 +141,13 @@ function varintLength(buffer, offset) {
 }
 
 function mapAlgorithm(value) {
+  // Google Authenticator 算法枚举定义:
+  // 0: ALGORITHM_UNSPECIFIED (默认SHA1)
+  // 1: ALGORITHM_SHA1
+  // 2: ALGORITHM_SHA256
+  // 3: ALGORITHM_SHA512
   const algorithmMap = {
+    0: 'SHA1',
     1: 'SHA1',
     2: 'SHA256',
     3: 'SHA512',

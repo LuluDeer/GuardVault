@@ -377,13 +377,20 @@ function processImageFile(file) {
 
 async function decodeQrCode(dataUrl) {
   try {
+    console.log('开始解析二维码...')
     const img = new Image()
     img.crossOrigin = 'Anonymous'
     img.src = dataUrl
 
     await new Promise((resolve, reject) => {
-      img.onload = resolve
-      img.onerror = reject
+      img.onload = () => {
+        console.log('图片加载成功，尺寸:', img.width, 'x', img.height)
+        resolve()
+      }
+      img.onerror = (err) => {
+        console.error('图片加载失败:', err)
+        reject(err)
+      }
     })
 
     const canvas = document.createElement('canvas')
@@ -393,19 +400,41 @@ async function decodeQrCode(dataUrl) {
     ctx.drawImage(img, 0, 0, img.width, img.height)
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    const code = jsQR(imageData.data, imageData.width, imageData.height)
+    console.log('ImageData获取成功，大小:', imageData.data.length, 'bytes')
+
+    // 尝试不同的inversionAttempts选项
+    const options = [
+      { inversionAttempts: "dontInvert" },
+      { inversionAttempts: "onlyInvert" },
+      { inversionAttempts: "attemptBoth" },
+    ]
+
+    let code = null
+    for (const opt of options) {
+      code = jsQR(imageData.data, imageData.width, imageData.height, opt)
+      if (code) {
+        console.log('二维码识别成功，使用选项:', opt.inversionAttempts)
+        break
+      }
+    }
 
     if (code) {
+      console.log('识别到的数据长度:', code.data.length)
+      console.log('数据前50字符:', code.data.substring(0, 50))
       migrationUrl.value = code.data
       if (code.data.startsWith('otpauth-migration://')) {
+        console.log('这是Google Authenticator迁移二维码')
         await doParseMigration()
       } else {
+        console.warn('这不是迁移二维码')
         ElMessage.warning(t('import.notMigrationQr'))
       }
     } else {
+      console.error('二维码识别失败')
       ElMessage.error(t('import.qrDecodeFailed'))
     }
   } catch (error) {
+    console.error('二维码解析错误:', error)
     ElMessage.error(t('import.qrDecodeFailed'))
   }
 }
