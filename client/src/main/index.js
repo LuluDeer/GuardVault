@@ -10,6 +10,21 @@ const tokenStore = require('./token-store');
 const { getConfig } = require('./app-config');
 const windowManager = require('./window-manager');
 
+// 单实例锁：第二个实例启动时直接退出，并将已有窗口带到前台
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+}
+
+app.on('second-instance', () => {
+  // 有第二个实例尝试启动时触发
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    if (!mainWindow.isVisible()) mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
 let mainWindow = null;
 
 function createWindow() {
