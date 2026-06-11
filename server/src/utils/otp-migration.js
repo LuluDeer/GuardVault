@@ -29,9 +29,12 @@ function parseMigrationPayload(buffer) {
   let offset = 0;
 
   while (offset < buffer.length) {
-    const [fieldNum, wireType] = decodeVarint(buffer, offset);
+    const tag = buffer[offset];
+    const fieldNum = tag >> 3;
+    const wireType = tag & 0x07;
+
     if (wireType === 0) {
-      offset += varintLength(buffer, offset);
+      offset += 1 + varintLength(buffer, offset + 1);
     } else if (wireType === 2) {
       const [length, lenBytes] = decodeVarint(buffer, offset + 1);
       const fieldOffset = offset + 1 + lenBytes;
@@ -64,7 +67,9 @@ function parseOtpParameters(buffer) {
   let offset = 0;
 
   while (offset < buffer.length) {
-    const [fieldNum, wireType] = decodeVarint(buffer, offset);
+    const tag = buffer[offset];
+    const fieldNum = tag >> 3;
+    const wireType = tag & 0x07;
 
     if (wireType === 0) {
       const [value, lenBytes] = decodeVarint(buffer, offset + 1);
@@ -75,7 +80,7 @@ function parseOtpParameters(buffer) {
           otp.algorithm = mapAlgorithm(value);
           break;
         case 5:
-          otp.digits = value;
+          otp.digits = mapDigits(value);
           break;
         case 6:
           otp.type = value === 1 ? 'hotp' : 'totp';
@@ -153,6 +158,19 @@ function mapAlgorithm(value) {
     3: 'SHA512',
   };
   return algorithmMap[value] || 'SHA1';
+}
+
+function mapDigits(value) {
+  // Google Authenticator 位数枚举定义:
+  // 0: DIGIT_COUNT_UNSPECIFIED (默认6)
+  // 1: DIGIT_COUNT_SIX
+  // 2: DIGIT_COUNT_EIGHT
+  const digitsMap = {
+    0: 6,
+    1: 6,
+    2: 8,
+  };
+  return digitsMap[value] || 6;
 }
 
 function base32Encode(buffer) {

@@ -73,8 +73,11 @@ export async function confirmImport(req, reply) {
       category: z.string().optional(),
       digits: z.number().int().optional(),
       algorithm: z.string().optional(),
+      // 每条服务可单独指定部门，null 表示共享服务
+      deptId: z.union([z.number().int().positive(), z.null()]).optional(),
     })).max(MAX_IMPORT_COUNT, `单次导入不能超过 ${MAX_IMPORT_COUNT} 个服务`),
-    deptId: z.number().int().positive(),
+    // 保留顶层 deptId 作为向后兼容的默认值（已弃用，优先使用每行的 deptId）
+    deptId: z.union([z.number().int().positive(), z.null()]).optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -104,7 +107,6 @@ export async function confirmImport(req, reply) {
   const serviceNames = selectedItems.map(item => item.name);
   const existingServices = await prisma.serviceAccount.findMany({
     where: {
-      deptId,
       name: { in: serviceNames },
     },
     select: { name: true },
@@ -128,6 +130,8 @@ export async function confirmImport(req, reply) {
     }
 
     try {
+      // 优先使用每行自带的 deptId，其次回退到全局 deptId（向后兼容），最后为 null（共享）
+      const effectiveDeptId = item.deptId !== undefined ? item.deptId : (globalDeptId ?? null);
       const serviceData = {
         name: item.name || '未知服务',
         category: item.category || guessCategory(item.issuer || item.name),
@@ -136,7 +140,7 @@ export async function confirmImport(req, reply) {
         digits: item.digits || 6,
         period: item.type === 'hotp' ? 0 : 30,
         algorithm: item.algorithm || 'SHA1',
-        deptId,
+        deptId: effectiveDeptId,
       };
 
       const created = await createService(serviceData, user.id);

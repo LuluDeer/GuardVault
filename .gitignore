@@ -43,3 +43,4 @@ web-admin/dist
 # Prisma local artifacts
 server/prisma/dev.db*
 server/uploads/
+nul

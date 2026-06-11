@@ -21,6 +21,7 @@
           <el-button type="primary" :icon="Plus" @click="openCreateDialog">{{ t('services.addService') }}</el-button>
           <el-button :icon="Camera" @click="openScanDialog">{{ t('services.scan') }}</el-button>
           <el-button :icon="Upload" @click="openImportDialog">{{ t('services.import') }}</el-button>
+          <el-button :icon="Setting" @click="catMgrVisible = true">管理分类</el-button>
         </el-col>
       </el-row>
     </el-card>
@@ -93,7 +94,7 @@
     </el-card>
 
     <el-dialog v-model="createVisible" title="新增服务" width="560px" @close="resetForm">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="服务名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入服务名称" />
         </el-form-item>
@@ -110,8 +111,11 @@
           <el-input v-model="form.url" placeholder="https://..." />
         </el-form-item>
         <el-form-item label="所属部门" prop="deptId">
-          <el-select v-model="form.deptId" :placeholder="t('services.selectDept')" clearable>
-            <el-option :label="t('services.sharedService')" :value="null" />
+          <el-select v-model="form.deptId" :placeholder="t('services.selectDept')" style="width:100%"
+            :model-value="form.deptId === null ? '__shared__' : form.deptId"
+            @update:model-value="val => form.deptId = (val === '__shared__' ? null : val)"
+          >
+            <el-option :label="t('services.sharedService')" value="__shared__" />
             <el-option v-for="dept in departments" :key="dept.id" :label="dept.name" :value="dept.id" />
           </el-select>
           <div style="font-size: 12px; color: #999; margin-top: 4px;">{{ t('services.deptHint') }}</div>
@@ -119,41 +123,40 @@
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
-        <el-divider content-position="left">高级选项</el-divider>
-        <el-form-item label="密钥(Base32)">
-          <el-input v-model="form.secret" placeholder="留空自动生成">
+        <el-divider content-position="left" style="margin-bottom:12px">高级选项</el-divider>
+        <el-form-item label="密钥">
+          <el-input v-model="form.secret" placeholder="留空自动生成，Base32格式">
             <template #append>
               <el-button @click="generateSecret">生成</el-button>
             </template>
           </el-input>
         </el-form-item>
-        <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item label="位数">
-              <el-select v-model="form.digits" style="width:100%">
-                <el-option :label="6" :value="6" />
-                <el-option :label="8" :value="8" />
+        <el-form-item label=" ">
+          <div style="display:flex;gap:16px;align-items:center">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:13px;color:#606266;white-space:nowrap">位数</span>
+              <el-select v-model="form.digits" style="width:80px">
+                <el-option label="6位" :value="6" />
+                <el-option label="8位" :value="8" />
               </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="周期(秒)">
-              <el-select v-model="form.period" style="width:100%">
-                <el-option :label="30" :value="30" />
-                <el-option :label="60" :value="60" />
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:13px;color:#606266;white-space:nowrap">周期</span>
+              <el-select v-model="form.period" style="width:90px">
+                <el-option label="30秒" :value="30" />
+                <el-option label="60秒" :value="60" />
               </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="算法">
-              <el-select v-model="form.algorithm" style="width:100%">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:13px;color:#606266;white-space:nowrap">算法</span>
+              <el-select v-model="form.algorithm" style="width:110px">
                 <el-option label="SHA1" value="SHA1" />
                 <el-option label="SHA256" value="SHA256" />
                 <el-option label="SHA512" value="SHA512" />
               </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
+            </div>
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createVisible=false">取消</el-button>
@@ -162,7 +165,7 @@
     </el-dialog>
 
     <el-dialog v-model="editVisible" title="编辑服务" width="560px">
-      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="100px">
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="80px">
         <el-form-item label="服务名称" prop="name">
           <el-input v-model="editForm.name" />
         </el-form-item>
@@ -189,34 +192,33 @@
         <el-form-item label="状态">
           <el-switch v-model="editForm.status" :active-value="1" :inactive-value="0" />
         </el-form-item>
-        <el-divider content-position="left">高级选项</el-divider>
-        <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item label="位数">
-              <el-select v-model="editForm.digits" style="width:100%">
-                <el-option :label="6" :value="6" />
-                <el-option :label="8" :value="8" />
+        <el-divider content-position="left" style="margin-bottom:12px">高级选项</el-divider>
+        <el-form-item label=" ">
+          <div style="display:flex;gap:16px;align-items:center">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:13px;color:#606266;white-space:nowrap">位数</span>
+              <el-select v-model="editForm.digits" style="width:80px">
+                <el-option label="6位" :value="6" />
+                <el-option label="8位" :value="8" />
               </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="周期(秒)">
-              <el-select v-model="editForm.period" style="width:100%">
-                <el-option :label="30" :value="30" />
-                <el-option :label="60" :value="60" />
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:13px;color:#606266;white-space:nowrap">周期</span>
+              <el-select v-model="editForm.period" style="width:90px">
+                <el-option label="30秒" :value="30" />
+                <el-option label="60秒" :value="60" />
               </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="算法">
-              <el-select v-model="editForm.algorithm" style="width:100%">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:13px;color:#606266;white-space:nowrap">算法</span>
+              <el-select v-model="editForm.algorithm" style="width:110px">
                 <el-option label="SHA1" value="SHA1" />
                 <el-option label="SHA256" value="SHA256" />
                 <el-option label="SHA512" value="SHA512" />
               </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
+            </div>
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editVisible=false">取消</el-button>
@@ -395,6 +397,22 @@
       </template>
     </el-dialog>
 
+    <!-- 分类管理弹窗 -->
+    <el-dialog v-model="catMgrVisible" title="管理分类" width="400px">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <el-input v-model="newCatName" placeholder="输入新分类名称" clearable @keyup.enter="handleAddCategory" />
+        <el-button type="primary" @click="handleAddCategory">添加</el-button>
+      </div>
+      <el-table :data="categories.map(c => ({ name: c }))" border style="width:100%" empty-text="暂无分类">
+        <el-table-column prop="name" label="分类名称" />
+        <el-table-column label="操作" width="80" align="center">
+          <template #default="{ row }">
+            <el-button size="small" type="danger" @click="handleDeleteCategory(row.name)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
     <el-dialog v-model="batchGrantVisible" title="批量授权" width="520px">
       <el-tabs v-model="batchGrantTab">
         <el-tab-pane label="按用户" name="user">
@@ -434,7 +452,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, h, computed } from 'vue'
-import { Search, Plus, Upload, Download, Camera } from '@element-plus/icons-vue'
+import { Search, Plus, Upload, Download, Camera, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import QRCode from 'qrcode'
 import { getServiceList, getService, getServiceSecret, createService, updateService, resetSecret, deleteService, getCategories, addCategory, deleteCategory, batchImport } from '@/api/service'
@@ -451,6 +469,8 @@ const total = ref(0)
 const selectedIds = ref([])
 const categories = ref([])
 const departments = ref([])
+const catMgrVisible = ref(false)
+const newCatName = ref('')
 const query = reactive({ page: 1, pageSize: 20, keyword: '', category: '', deptId: '' })
 
 // 虚拟滚动表格列定义（大数据量场景，>50 行时启用；依赖 locale 以触发响应式刷新）
@@ -561,6 +581,30 @@ async function fetchCategories() {
   try {
     const res = await getCategories()
     categories.value = res.data || []
+  } catch {}
+}
+
+async function handleAddCategory() {
+  const name = newCatName.value.trim()
+  if (!name) return
+  if (categories.value.some(c => c.toLowerCase() === name.toLowerCase())) {
+    ElMessage.warning('分类已存在')
+    return
+  }
+  try {
+    await addCategory(name)
+    categories.value.push(name)
+    newCatName.value = ''
+    ElMessage.success('添加成功')
+  } catch { ElMessage.error('添加失败') }
+}
+
+async function handleDeleteCategory(name) {
+  try {
+    await ElMessageBox.confirm(`确定删除分类「${name}」吗？`, '提示', { type: 'warning' })
+    await deleteCategory(name)
+    categories.value = categories.value.filter(c => c !== name)
+    ElMessage.success('已删除')
   } catch {}
 }
 
@@ -1021,4 +1065,12 @@ onMounted(async () => {
 .qr-upload-placeholder { text-align: center; color: #909399; }
 .qr-upload-placeholder .el-icon { font-size: 32px; margin-bottom: 8px; }
 .qr-preview-img { width: 200px; height: 200px; object-fit: contain; border-radius: 8px; }
+
+.category-manager { display: flex; flex-direction: column; gap: 16px; }
+.category-add { display: flex; gap: 8px; align-items: center; }
+.category-list { border: 1px solid #e4e7ed; border-radius: 6px; max-height: 300px; overflow-y: auto; }
+.category-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
+.category-item:last-child { border-bottom: none; }
+.category-item span { font-size: 14px; }
+.category-empty { padding: 24px; text-align: center; color: #909399; font-size: 13px; }
 </style>

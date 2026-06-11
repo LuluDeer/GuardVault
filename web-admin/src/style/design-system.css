@@ -238,3 +238,12 @@ html.dark .glass-effect {
   color: var(--text-tertiary);
   margin-top: var(--spacing-xs);
 }
+
+/* 算法下拉框宽度修正：确保 SHA256/SHA512 等选项不被截断 */
+.algo-dropdown {
+  min-width: 140px !important;
+}
+.algo-dropdown .el-select-dropdown__item {
+  min-width: 140px !important;
+  white-space: nowrap;
+}
