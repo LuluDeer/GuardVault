@@ -19,6 +19,20 @@ request.interceptors.request.use(
 )
 
 let isRefreshing = false
+// 等待刷新完成的请求队列，刷新成功后统一重试
+let refreshQueue = []
+
+function processQueue(success) {
+  refreshQueue.forEach(({ resolve, reject, config }) => {
+    if (success) {
+      config.headers['Authorization'] = `Bearer ${localStorage.getItem('admin_token')}`
+      resolve(request(config))
+    } else {
+      reject(new Error('Token refresh failed'))
+    }
+  })
+  refreshQueue = []
+}
 
 async function doRefreshToken() {
   const refreshToken = localStorage.getItem('admin_refresh_token')
@@ -74,15 +88,24 @@ request.interceptors.response.use(
     const originalRequest = error.config
     if (error.response?.data?.code === 1005 && !originalRequest._retry) {
       originalRequest._retry = true
-      if (!isRefreshing) {
-        isRefreshing = true
-        const success = await doRefreshToken()
-        isRefreshing = false
-        if (success) {
-          originalRequest.headers['Authorization'] = `Bearer ${localStorage.getItem('admin_token')}`
-          return request(originalRequest)
-        }
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({
+            resolve,
+            reject,
+            config: originalRequest,
+          })
+        })
       }
+      isRefreshing = true
+      const success = await doRefreshToken()
+      isRefreshing = false
+      if (success) {
+        processQueue(true)
+        originalRequest.headers['Authorization'] = `Bearer ${localStorage.getItem('admin_token')}`
+        return request(originalRequest)
+      }
+      processQueue(false)
       localStorage.removeItem('admin_token')
       localStorage.removeItem('admin_username')
       localStorage.removeItem('admin_refresh_token')

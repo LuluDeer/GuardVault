@@ -27,7 +27,7 @@ export async function changePassword(request, reply) {
   const user = await findUserById(request.user.id);
   const valid = await verifyPassword(parsed.data.oldPassword, user.password);
   if (!valid) {
-    await writeLog({
+    writeLog({
       operatorId: user.id, operatorName: user.username,
       actionType: 'USER_CHANGE_PASSWORD', actionDesc: '用户修改密码失败：旧密码错误',
       clientIp: request.ip, result: 0, failReason: '旧密码错误',
@@ -40,7 +40,7 @@ export async function changePassword(request, reply) {
   await revokeToken(request.token);
   await revokeUserRefreshTokens(user.id);
 
-  await writeLog({
+  writeLog({
     operatorId: user.id, operatorName: user.username,
     actionType: 'USER_CHANGE_PASSWORD', actionDesc: '用户修改密码成功',
     clientIp: request.ip, result: 1,

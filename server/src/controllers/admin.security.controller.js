@@ -15,7 +15,7 @@ export async function manualBlock(request, reply) {
   }
   const duration = durationMinutes * 60 * 1000;
   await blockIp(ip, reason || '管理员手动封禁', duration);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'IP_BLOCK_MANUAL', actionDesc: `手动封禁 IP: ${ip}, 原因: ${reason || '未指定'}`,
     clientIp: request.ip, result: 1,
@@ -29,7 +29,7 @@ export async function manualUnblock(request, reply) {
     return fail(reply, ErrorCode.PARAM_ERROR, 'IP 不能为空');
   }
   await unblockIp(ip);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'IP_UNBLOCK', actionDesc: `手动解封 IP: ${ip}`,
     clientIp: request.ip, result: 1,

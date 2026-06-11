@@ -20,7 +20,7 @@ export async function getServiceCode(request, reply) {
 
   const accessibleIds = await grantService.getUserAccessibleServiceIds(request.user.id, request.user.role, request.user.deptId);
   if (!accessibleIds.includes(id)) {
-    await writeLog({
+    writeLog({
       operatorId: request.user.id,
       operatorName: request.user.username,
       targetAccountId: id,
@@ -44,7 +44,7 @@ export async function getServiceCode(request, reply) {
 
   if (!lastView || now - lastView > 30000) {
     VIEW_CODE_DEBOUNCE.set(key, now);
-    await writeLog({
+    writeLog({
       operatorId: request.user.id,
       operatorName: request.user.username,
       targetAccountId: id,
@@ -110,7 +110,7 @@ export async function reportCopy(request, reply) {
 
   const service = await serviceService.getService(id);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: id,

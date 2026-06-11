@@ -83,7 +83,7 @@ export async function appointDeptAdmin(request, reply) {
   }
 
   const updated = await deptService.appointDeptAdmin(parsed.data.userId, target.deptId);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: target.id, targetUsername: target.username,
     targetDeptId: target.deptId,
@@ -122,7 +122,7 @@ export async function revokeDeptAdmin(request, reply) {
   if (!target.deptId) return fail(reply, ErrorCode.PARAM_ERROR, '用户无部门信息');
 
   const updated = await deptService.revokeDeptAdmin(userId, target.deptId);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: userId, targetUsername: target.username,
     targetDeptId: target.deptId,
@@ -176,7 +176,7 @@ export async function updateDeptMember(request, reply) {
   if (parsed.data.password) parts.push('重置密码');
   if (parsed.data.status !== undefined) parts.push(parsed.data.status === 1 ? '启用' : '禁用');
   if (parsed.data.role !== undefined) parts.push(`角色 ${target.role}→${parsed.data.role}`);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: userId, targetUsername: target.username,
     actionType: parsed.data.status !== undefined
@@ -232,7 +232,7 @@ export async function createServiceForDept(request, reply) {
     remark: '自建服务自动授权',
   });
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetAccountId: service.id, targetAccountName: service.name,
     targetDeptId: deptId,
@@ -293,7 +293,7 @@ export async function grantServiceToDeptMember(request, reply) {
     remark: parsed.data.remark,
     grantedById: request.user.id,
   });
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: user.id, targetUsername: user.username,
     targetAccountId: service.id, targetAccountName: service.name,
@@ -321,7 +321,7 @@ export async function revokeServiceFromDeptMember(request, reply) {
     return fail(reply, ErrorCode.FORBIDDEN, '无权操作其他部门服务');
   }
   await grantService.revokeAccess(parsed.data.userId, parsed.data.accountId);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: parsed.data.userId, targetAccountId: parsed.data.accountId,
     actionType: 'GRANT_REVOKE',
@@ -374,7 +374,7 @@ export async function createDeptMember(request, reply) {
     deptId,
   });
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: newUser.id, targetUsername: newUser.username,
     targetDeptId: deptId,

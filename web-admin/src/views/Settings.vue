@@ -28,6 +28,17 @@
         <el-input-number v-model="form.login_lock_minutes" :min="1" :max="1440" controls-position="right" />
         <el-button type="primary" size="small" style="margin-left:12px" :loading="savingKey==='login_lock_minutes'" @click="save('login_lock_minutes', form.login_lock_minutes)">{{ t('common.save') }}</el-button>
       </el-form-item>
+      <el-divider content-position="left">{{ t('settings.userRegistration') }}</el-divider>
+      <el-form-item :label="t('settings.allowSelfRegister')">
+        <el-switch
+          v-model="form.allow_self_register"
+          :active-value="true"
+          :inactive-value="false"
+          :loading="savingKey==='allow_self_register'"
+          @change="save('allow_self_register', form.allow_self_register ? '1' : '0')"
+        />
+        <span style="margin-left:10px;font-size:12px;color:#909399">{{ t('settings.allowSelfRegisterHint') }}</span>
+      </el-form-item>
     </el-form>
   </el-card>
 
@@ -93,6 +104,7 @@ const form = reactive({
   login_fail_max: 5,
   login_lock_minutes: 10,
   log_retention_days: 90,
+  allow_self_register: false,
 })
 
 function goBack() {

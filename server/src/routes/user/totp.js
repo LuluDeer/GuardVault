@@ -32,4 +32,26 @@ export default async function totpRoutes(fastify) {
     userAuth('User-TOTP', '查看自己的 TOTP 密钥（用于重新绑定）'),
     totpController.getMySecret,
   );
+
+  // 生成/重置恢复码（需密码确认）
+  fastify.post(
+    '/api/user/totp/recovery-codes',
+    userAuth('User-TOTP', '生成 TOTP 恢复码', {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['password'],
+          properties: { password: { type: 'string', minLength: 1, maxLength: 128 } },
+        },
+      },
+    }),
+    totpController.generateRecoveryCodes,
+  );
+
+  // 查询剩余可用恢复码数量
+  fastify.get(
+    '/api/user/totp/recovery-codes/status',
+    userAuth('User-TOTP', '查询剩余恢复码数量'),
+    totpController.getRecoveryCodeStatus,
+  );
 }

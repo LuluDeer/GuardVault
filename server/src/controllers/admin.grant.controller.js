@@ -60,7 +60,7 @@ export async function grantAccess(request, reply) {
     grantedById: request.user.id,
   });
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetUserId: user.id,
@@ -106,7 +106,7 @@ export async function revokeAccess(request, reply) {
 
   await grantService.revokeAccess(parsed.data.userId, parsed.data.accountId);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetUserId: user.id,
@@ -154,7 +154,7 @@ export async function batchGrant(request, reply) {
   });
 
   const successCount = results.filter(r => r.success).length;
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: service.id,
@@ -196,7 +196,7 @@ export async function batchRevoke(request, reply) {
   const results = await grantService.batchRevoke(parsed.data);
 
   const successCount = results.filter(r => r.success).length;
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: service.id,
@@ -242,7 +242,7 @@ export async function batchGrantByDept(request, reply) {
   });
 
   const successCount = results.filter(r => r.success).length;
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: service.id,
@@ -284,7 +284,7 @@ export async function batchRevokeByDept(request, reply) {
   });
 
   const successCount = results.filter(r => r.success).length;
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: service.id,

@@ -33,7 +33,7 @@ export async function refresh(request, reply) {
   const token = signToken({ id: userInfo.userId, username: userInfo.username, role: userInfo.role }, expireSeconds);
   const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
 
-  await writeLog({
+  writeLog({
     operatorId: userInfo.userId, operatorName: userInfo.username,
     actionType: 'TOKEN_REFRESH', actionDesc: 'Token 刷新',
     clientIp: request.ip, result: 1,

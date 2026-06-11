@@ -9,6 +9,8 @@ const ALLOWED_KEYS = [
   'admin_session_timeout',
   'login_fail_max',
   'login_lock_minutes',
+  'log_retention_days',
+  'allow_self_register',
 ];
 
 /**
@@ -38,7 +40,7 @@ export async function setConfig(request, reply) {
 
   await setConfigService(parsed.data.key, parsed.data.value, request.user.username);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'CONFIG_UPDATE',
     actionDesc: `修改系统配置 ${parsed.data.key} = ${parsed.data.value}`,

@@ -35,7 +35,7 @@ export async function getServiceSecret(request, reply) {
     return fail(reply, ErrorCode.PARAM_ERROR, '服务不存在');
   }
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: id,
@@ -83,7 +83,7 @@ export async function createService(request, reply) {
 
   const service = await serviceService.createService(parsed.data, request.user.id);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: service.id,
@@ -131,7 +131,7 @@ export async function updateService(request, reply) {
 
   const service = await serviceService.updateService(id, parsed.data);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: id,
@@ -158,7 +158,7 @@ export async function resetSecret(request, reply) {
 
   const result = await serviceService.resetSecret(id);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: id,
@@ -185,7 +185,7 @@ export async function deleteService(request, reply) {
 
   await serviceService.deleteService(id);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     targetAccountId: id,
@@ -285,7 +285,7 @@ export async function createFromOtpauth(request, reply) {
       status: 1,
     }, request.user.id);
 
-    await writeLog({
+    writeLog({
       operatorId: request.user.id,
       operatorName: request.user.username,
       targetAccountId: service.id,
@@ -330,7 +330,7 @@ export async function batchImport(request, reply) {
       const service = await serviceService.createService(serviceData, request.user.id);
       results.push({ success: true, name: serviceData.name, id: service.id });
 
-      await writeLog({
+      writeLog({
         operatorId: request.user.id,
         operatorName: request.user.username,
         targetAccountId: service.id,
@@ -346,7 +346,7 @@ export async function batchImport(request, reply) {
   }
 
   const successCount = results.filter(r => r.success).length;
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     actionType: 'SERVICE_BATCH_IMPORT',

@@ -26,7 +26,7 @@ export async function requestReset(request, reply) {
   try {
     const { token, expireAt } = await createResetToken(username);
 
-    await writeLog({
+    writeLog({
       operatorId: null, operatorName: 'system',
       targetUsername: username,
       actionType: 'PASSWORD_RESET_REQUEST',
@@ -91,7 +91,7 @@ export async function resetPassword(request, reply) {
   await revokeUserRefreshTokens(resetData.userId);
   await clearResetToken(resetData.userId);
 
-  await writeLog({
+  writeLog({
     operatorId: null, operatorName: 'system',
     targetUserId: resetData.userId, targetUsername: resetData.username,
     actionType: 'PASSWORD_RESET',

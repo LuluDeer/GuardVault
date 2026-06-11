@@ -1,4 +1,5 @@
 import * as totpService from '../services/totp.service.js';
+import * as recoveryCodeService from '../services/recovery-code.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { z } from 'zod';
@@ -15,7 +16,7 @@ export async function getMyCode(request, reply) {
   try {
     const codeResult = await totpService.getUserCode(userId);
 
-    await writeLog({
+    writeLog({
       operatorId: userId, operatorName: request.user.username,
       actionType: 'USER_GET_CODE', actionDesc: '用户获取个人动态验证码',
       clientIp: request.ip, result: 1,
@@ -43,7 +44,7 @@ export async function verifyTotp(request, reply) {
   try {
     const valid = await totpService.verifyTotp(userId, parsed.data.code);
 
-    await writeLog({
+    writeLog({
       operatorId: userId, operatorName: request.user.username,
       actionType: 'USER_VERIFY_TOTP',
       actionDesc: valid ? 'TOTP验证成功' : 'TOTP验证失败',
@@ -79,7 +80,7 @@ export async function getMySecret(request, reply) {
 
   const passwordValid = await bcrypt.compare(parsed.data.password, user.password);
   if (!passwordValid) {
-    await writeLog({
+    writeLog({
       operatorId: userId, operatorName: request.user.username,
       actionType: 'USER_VIEW_SECRET',
       actionDesc: '用户查看TOTP密钥失败：密码验证失败',
@@ -96,7 +97,7 @@ export async function getMySecret(request, reply) {
   const secret = decrypt(key.encryptedSecret);
   const otpauthUrl = `otpauth://totp/TOTPClient:${encodeURIComponent(request.user.username)}?secret=${secret}&issuer=TOTPClient&period=30&digits=6&algorithm=SHA1`;
 
-  await writeLog({
+  writeLog({
     operatorId: userId, operatorName: request.user.username,
     actionType: 'USER_VIEW_SECRET',
     actionDesc: '用户查看自己的TOTP密钥',
@@ -110,4 +111,63 @@ export async function getMySecret(request, reply) {
     otpauthUrl,
     boundAt: key.resetTime,
   });
+}
+
+/**
+ * 生成/重置 TOTP 恢复码（需密码确认）
+ */
+export async function generateRecoveryCodes(request, reply) {
+  const schema = z.object({
+    password: z.string().min(1).max(128),
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return fail(reply, ErrorCode.PARAM_ERROR, '请输入密码');
+  }
+
+  const userId = request.user.id;
+  const user = await prisma.systemUser.findUnique({
+    where: { id: userId },
+    select: { password: true },
+  });
+  if (!user) {
+    return fail(reply, ErrorCode.USER_NOT_FOUND, '用户不存在');
+  }
+
+  const passwordValid = await bcrypt.compare(parsed.data.password, user.password);
+  if (!passwordValid) {
+    writeLog({
+      operatorId: userId, operatorName: request.user.username,
+      actionType: 'USER_RECOVERY_CODE_GEN',
+      actionDesc: '生成恢复码失败：密码验证失败',
+      clientIp: request.ip, result: 0, failReason: '密码验证失败',
+    });
+    return fail(reply, ErrorCode.WRONG_CREDENTIALS, '密码错误');
+  }
+
+  // 确认 TOTP 已启用
+  const key = await totpService.getUserKey(userId);
+  if (!key || key.isEnable !== 1) {
+    return fail(reply, ErrorCode.TOTP_NOT_ENABLED, '2FA权限未开通，请联系管理员');
+  }
+
+  const codes = await recoveryCodeService.generateRecoveryCodes(userId);
+
+  writeLog({
+    operatorId: userId, operatorName: request.user.username,
+    actionType: 'USER_RECOVERY_CODE_GEN',
+    actionDesc: '用户重新生成 TOTP 恢复码',
+    clientIp: request.ip, result: 1,
+  });
+
+  return success(reply, { codes });
+}
+
+/**
+ * 查询剩余可用恢复码数量
+ */
+export async function getRecoveryCodeStatus(request, reply) {
+  const userId = request.user.id;
+  const remaining = await recoveryCodeService.getRemainingCount(userId);
+  return success(reply, { remaining, total: 8 });
 }

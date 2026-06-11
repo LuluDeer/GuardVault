@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearClipboard: () => ipcRenderer.send('clipboard:clear'),
   notify: (title, body) => ipcRenderer.send('notify', { title, body }),
 
+  // --- 应用退出（弹原生确认对话框） ---
+  quitApp: () => ipcRenderer.invoke('app:quit'),
+
   // --- 窗口控制 ---
   minimize: () => ipcRenderer.send('window:minimize'),
   closeWindow: () => ipcRenderer.send('window:close'),

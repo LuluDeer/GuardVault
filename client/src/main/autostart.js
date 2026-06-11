@@ -83,15 +83,34 @@ function setAutoStartWindows(enable) {
   }
 }
 
+function getAutoStartMac() {
+  try {
+    return app.getLoginItemSettings().openAtLogin;
+  } catch {
+    return false;
+  }
+}
+
+function setAutoStartMac(enable) {
+  try {
+    app.setLoginItemSettings({ openAtLogin: enable });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getAutoStart() {
   if (process.platform === 'win32') return getAutoStartWindows();
   if (process.platform === 'linux') return getAutoStartLinux();
-  return false; // macOS 暂未实现
+  if (process.platform === 'darwin') return getAutoStartMac();
+  return false;
 }
 
 function setAutoStart(enable) {
   if (process.platform === 'win32') return setAutoStartWindows(enable);
   if (process.platform === 'linux') return setAutoStartLinux(enable);
+  if (process.platform === 'darwin') return setAutoStartMac(enable);
   return false;
 }
 

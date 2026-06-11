@@ -1,5 +1,6 @@
 import * as totpService from '../services/totp.service.js';
 import * as userService from '../services/user.service.js';
+import { clearRecoveryCodes } from '../services/recovery-code.service.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { z } from 'zod';
@@ -8,7 +9,6 @@ import { decrypt } from '../utils/crypto.js';
 import bcrypt from 'bcryptjs';
 import { checkUserDeptAccess } from '../middlewares/authorize.js';
 
-const SECRET_VIEW_ATTEMPTS = new Map();
 const MAX_SECRET_VIEW_ATTEMPTS = 3;
 const SECRET_VIEW_LOCK_MINUTES = 15;
 
@@ -26,7 +26,7 @@ export async function enableTotp(request, reply) {
 
   await totpService.enableTotp(userId);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: userId, targetUsername: target.username,
     actionType: 'TOTP_ENABLE', actionDesc: `为用户 ${target.username} 开通2FA`,
@@ -49,8 +49,10 @@ export async function disableTotp(request, reply) {
   }
 
   await totpService.disableTotp(userId);
+  // 禁用 2FA 时一并清除恢复码，避免残留可用凭据
+  await clearRecoveryCodes(userId);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: userId, targetUsername: target.username,
     actionType: 'TOTP_DISABLE', actionDesc: `禁用用户 ${target.username} 的2FA`,
@@ -74,7 +76,7 @@ export async function resetTotp(request, reply) {
 
   await totpService.resetTotp(userId);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: userId, targetUsername: target.username,
     actionType: 'TOTP_RESET', actionDesc: `重置用户 ${target.username} 的TOTP密钥`,
@@ -104,7 +106,7 @@ export async function batchResetTotp(request, reply) {
 
   const result = await totpService.batchResetTotp(parsed.data.userIds);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'TOTP_RESET',
     actionDesc: `批量重置TOTP密钥，共 ${parsed.data.userIds.length} 人，成功 ${result.successCount} 人`,
@@ -129,7 +131,7 @@ export async function getUserCode(request, reply) {
   try {
     const codeResult = await totpService.getUserCode(userId);
 
-    await writeLog({
+    writeLog({
       operatorId: request.user.id, operatorName: request.user.username,
       targetUserId: userId, targetUsername: target.username,
       actionType: 'ADMIN_VIEW_CODE', actionDesc: `管理员查询用户 ${target.username} 的动态码`,
@@ -162,10 +164,9 @@ export async function getUserSecret(request, reply) {
   if (!userId) return fail(reply, ErrorCode.PARAM_ERROR, '用户ID无效');
 
   const attemptKey = `${request.user.id}_${userId}`;
-  const attempt = SECRET_VIEW_ATTEMPTS.get(attemptKey);
-  if (attempt && attempt.lockUntil > Date.now()) {
-    const remaining = Math.ceil((attempt.lockUntil - Date.now()) / 60000);
-    return fail(reply, ErrorCode.ACCOUNT_LOCKED, `操作过于频繁，请 ${remaining} 分钟后再试`);
+  const currentAttempts = await getSecretViewAttempts(attemptKey);
+  if (currentAttempts >= MAX_SECRET_VIEW_ATTEMPTS) {
+    return fail(reply, ErrorCode.ACCOUNT_LOCKED, `操作过于频繁，请 ${SECRET_VIEW_LOCK_MINUTES} 分钟后再试`);
   }
 
   const admin = await prisma.systemUser.findUnique({
@@ -175,17 +176,9 @@ export async function getUserSecret(request, reply) {
 
   const passwordValid = await bcrypt.compare(parsed.data.adminPassword, admin.password);
   if (!passwordValid) {
-    const newAttempts = (attempt?.count || 0) + 1;
-    if (newAttempts >= MAX_SECRET_VIEW_ATTEMPTS) {
-      SECRET_VIEW_ATTEMPTS.set(attemptKey, {
-        count: newAttempts,
-        lockUntil: Date.now() + SECRET_VIEW_LOCK_MINUTES * 60000,
-      });
-    } else {
-      SECRET_VIEW_ATTEMPTS.set(attemptKey, { count: newAttempts, lockUntil: 0 });
-    }
+    const newAttempts = await recordSecretViewAttempt(attemptKey, request.ip);
 
-    await writeLog({
+    writeLog({
       operatorId: request.user.id, operatorName: request.user.username,
       targetUserId: userId,
       actionType: 'ADMIN_VIEW_SECRET',
@@ -195,7 +188,7 @@ export async function getUserSecret(request, reply) {
     return fail(reply, ErrorCode.WRONG_CREDENTIALS, `管理员密码错误，还可尝试 ${MAX_SECRET_VIEW_ATTEMPTS - newAttempts} 次`);
   }
 
-  SECRET_VIEW_ATTEMPTS.delete(attemptKey);
+  await clearSecretViewAttempts(request.user.id);
 
   const key = await totpService.getUserKey(userId);
   if (!key || key.isEnable !== 1) {
@@ -209,7 +202,7 @@ export async function getUserSecret(request, reply) {
 
   const otpauthUrl = `otpauth://totp/TOTPClient:${encodeURIComponent(user.username)}?secret=${secret}&issuer=TOTPClient&period=30&digits=6&algorithm=SHA1`;
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: userId, targetUsername: user.username,
     actionType: 'ADMIN_VIEW_SECRET',

@@ -4,8 +4,15 @@ import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { prisma } from '../utils/prisma.js';
 import { validatePassword } from '../utils/password-strength.js';
+import { getConfig } from '../services/config.service.js';
 
 export async function register(request, reply) {
+  // 检查自助注册开关（默认关闭）
+  const allowRegister = await getConfig('allow_self_register');
+  if (allowRegister !== '1' && allowRegister !== 'true') {
+    return fail(reply, ErrorCode.FORBIDDEN, '自助注册已关闭，请联系管理员创建账号');
+  }
+
   const schema = z.object({
     username: z.string().min(4).max(32).regex(/^[a-zA-Z0-9_]+$/),
     password: z.string().min(6).max(128),
@@ -40,7 +47,7 @@ export async function register(request, reply) {
     },
   });
 
-  await writeLog({
+  writeLog({
     operatorId: null, operatorName: 'system',
     targetUserId: user.id, targetUsername: user.username,
     actionType: 'USER_REGISTER', actionDesc: `用户 ${username} 注册成功`,

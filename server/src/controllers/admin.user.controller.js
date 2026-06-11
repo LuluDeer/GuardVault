@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import * as userService from '../services/user.service.js';
+import { prisma } from '../prisma/client.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { validatePassword } from '../utils/password-strength.js';
@@ -65,7 +66,7 @@ export async function createUser(request, reply) {
 
   const user = await userService.createUser(parsed.data);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: user.id, targetUsername: user.username,
     actionType: 'USER_CREATE', actionDesc: `创建用户 ${user.username} (${user.role})`,
@@ -141,7 +142,7 @@ export async function updateUser(request, reply) {
   if (parsed.data.deptId !== undefined) parts.push(`变更部门`);
   const actionDesc = `${parts.join('，') || '更新'}：${target.username}`;
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: id, targetUsername: target.username,
     actionType: parsed.data.status !== undefined
@@ -182,10 +183,100 @@ export async function deleteUser(request, reply) {
 
   await userService.deleteUser(id);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: id, targetUsername: target.username,
     actionType: 'USER_DELETE', actionDesc: `删除用户 ${target.username} (${target.role}) 及其所有数据`,
+    clientIp: request.ip, result: 1,
+  });
+
+  return success(reply);
+}
+
+/**
+ * 批量更新用户状态
+ * body: { ids: number[], status: 0|1 }
+ */
+export async function batchUpdateUsers(request, reply) {
+  const { ids, status } = request.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return fail(reply, ErrorCode.PARAM_INVALID, 'ids 不能为空');
+  }
+  if (status !== 0 && status !== 1) {
+    return fail(reply, ErrorCode.PARAM_INVALID, 'status 必须为 0 或 1');
+  }
+
+  // 过滤掉自己的 id，防止自我禁用
+  const safeIds = ids.filter(id => id !== request.user.id);
+  if (safeIds.length === 0) {
+    return fail(reply, ErrorCode.FORBIDDEN, '不能对自己执行批量操作');
+  }
+
+  // dept_admin 只能操作自己部门的 user
+  if (request.user.role === 'dept_admin') {
+    for (const id of safeIds) {
+      if (!(await checkUserDeptAccess(request, id))) {
+        return fail(reply, ErrorCode.FORBIDDEN, '无权操作其他部门用户');
+      }
+    }
+  }
+
+  await prisma.user.updateMany({
+    where: { id: { in: safeIds } },
+    data: { status },
+  });
+
+  writeLog({
+    operatorId: request.user.id, operatorName: request.user.username,
+    actionType: 'USER_BATCH_UPDATE',
+    actionDesc: `批量${status === 1 ? '启用' : '禁用'}用户 IDs: ${safeIds.join(',')}`,
+    clientIp: request.ip, result: 1,
+  });
+
+  return success(reply);
+}
+
+/**
+ * 批量删除用户
+ * body: { ids: number[] }
+ */
+export async function batchDeleteUsers(request, reply) {
+  const { ids } = request.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return fail(reply, ErrorCode.PARAM_INVALID, 'ids 不能为空');
+  }
+
+  // 过滤掉操作者自己
+  const safeIds = ids.filter(id => id !== request.user.id);
+  if (safeIds.length === 0) {
+    return fail(reply, ErrorCode.FORBIDDEN, '不能删除自己的账号');
+  }
+
+  // dept_admin 只能删除自己部门的 user
+  if (request.user.role === 'dept_admin') {
+    for (const id of safeIds) {
+      if (!(await checkUserDeptAccess(request, id))) {
+        return fail(reply, ErrorCode.FORBIDDEN, '无权删除其他部门用户');
+      }
+    }
+  }
+
+  // 末位超管保护
+  const targets = await prisma.user.findMany({ where: { id: { in: safeIds } } });
+  const superAdminCount = targets.filter(u => u.role === 'super_admin').length;
+  if (superAdminCount > 0) {
+    const remain = await userService.countSuperAdmins();
+    if (remain - superAdminCount < 1) {
+      return fail(reply, ErrorCode.FORBIDDEN, '系统至少需要保留一名启用的超级管理员');
+    }
+  }
+
+  await prisma.user.deleteMany({ where: { id: { in: safeIds } } });
+
+  writeLog({
+    operatorId: request.user.id, operatorName: request.user.username,
+    actionType: 'USER_BATCH_DELETE',
+    actionDesc: `批量删除用户 IDs: ${safeIds.join(',')}`,
     clientIp: request.ip, result: 1,
   });
 

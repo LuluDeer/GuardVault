@@ -55,7 +55,7 @@ export async function login(request, reply) {
     const { failCount, locked } = await recordLoginFail(user.id, maxFail, lockMinutes);
     await recordFailedAttempt(clientIp, username, 'admin_login');
 
-    await writeLog({
+    writeLog({
       operatorId: user.id, operatorName: username,
       actionType: 'ADMIN_LOGIN', actionDesc: '管理员登录失败：密码错误',
       clientIp, userAgent, result: 0, failReason: '密码错误',
@@ -76,7 +76,7 @@ export async function login(request, reply) {
   const token = signToken({ id: user.id, username: user.username, role: user.role }, expireSeconds);
   const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
 
-  await writeLog({
+  writeLog({
     operatorId: user.id, operatorName: username,
     actionType: 'ADMIN_LOGIN', actionDesc: '管理员登录成功',
     clientIp, userAgent, result: 1,
@@ -103,7 +103,7 @@ export async function login(request, reply) {
 export async function logout(request, reply) {
   await revokeToken(request.token);
   await revokeUserRefreshTokens(request.user.id);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'ADMIN_LOGOUT', actionDesc: '管理员登出',
     clientIp: request.ip, result: 1,
@@ -115,7 +115,7 @@ export async function logout(request, reply) {
  * 系统初始化（首次部署创建超级管理员）
  */
 export async function initSystem(request, reply) {
-  const count = await prisma.systemUser.count({ where: { role: 'admin' } });
+  const count = await prisma.systemUser.count({ where: { role: 'super_admin' } });
   if (count > 0) {
     return fail(reply, ErrorCode.FORBIDDEN, '系统已初始化，该接口已关闭');
   }
@@ -142,7 +142,7 @@ export async function initSystem(request, reply) {
 
   await initDefaultConfig();
 
-  await writeLog({
+  writeLog({
     operatorId: admin.id, operatorName: admin.username,
     actionType: 'SYSTEM_INIT', actionDesc: '系统初始化，创建超级管理员',
     clientIp: request.ip, result: 1,
@@ -193,7 +193,7 @@ export async function changePassword(request, reply) {
   await revokeToken(request.token);
   await revokeUserRefreshTokens(adminId);
 
-  await writeLog({
+  writeLog({
     operatorId: adminId, operatorName: request.user.username,
     actionType: 'ADMIN_CHANGE_PASSWORD',
     actionDesc: '管理员修改自己密码',

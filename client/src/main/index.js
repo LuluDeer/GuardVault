@@ -26,7 +26,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
       preload: path.join(__dirname, '../preload/index.js'),
-      webSecurity: false,
+      webSecurity: process.env.NODE_ENV === 'development',
     },
   });
   windowManager.setMainWindow(mainWindow);

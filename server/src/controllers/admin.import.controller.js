@@ -88,9 +88,11 @@ export async function confirmImport(req, reply) {
   const { items, deptId } = parsed.data;
   const { user } = req;
 
-  const dept = await prisma.department.findUnique({ where: { id: deptId } });
-  if (!dept) {
-    return fail(reply, ErrorCode.PARAM_ERROR, '部门不存在');
+  if (deptId != null) {
+    const dept = await prisma.department.findUnique({ where: { id: deptId } });
+    if (!dept) {
+      return fail(reply, ErrorCode.PARAM_ERROR, '部门不存在');
+    }
   }
 
   const selectedItems = items.filter(item => item.selected && item.secret);
@@ -130,8 +132,8 @@ export async function confirmImport(req, reply) {
     }
 
     try {
-      // 优先使用每行自带的 deptId，其次回退到全局 deptId（向后兼容），最后为 null（共享）
-      const effectiveDeptId = item.deptId !== undefined ? item.deptId : (globalDeptId ?? null);
+      // 优先使用每行自带的 deptId，其次回退到顶层 deptId（向后兼容），最后为 null（共享）
+      const effectiveDeptId = item.deptId !== undefined ? item.deptId : (deptId ?? null);
       const serviceData = {
         name: item.name || '未知服务',
         category: item.category || guessCategory(item.issuer || item.name),
@@ -145,7 +147,7 @@ export async function confirmImport(req, reply) {
 
       const created = await createService(serviceData, user.id);
 
-      await addLog({
+      writeLog({
         operatorId: user.id,
         operatorName: user.username,
         actionType: 'IMPORT_SERVICE',

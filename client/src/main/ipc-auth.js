@@ -7,7 +7,7 @@ const { broadcastAuthExpired } = require('./ipc-config');
 const tray = require('./tray');
 const userEvents = require('./user-events');
 
-const REFRESH_INTERVAL = 60 * 60 * 1000;  // 1h
+const REFRESH_INTERVAL = 15 * 60 * 1000;  // 15min，管理员 Token 有效期 30min，需在过期前刷新
 let tokenRefreshTimer = null;
 
 async function refreshToken() {

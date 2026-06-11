@@ -1,6 +1,6 @@
 // IPC：本地应用配置 + 窗口/剪贴板/通知 + 自启动
 // 所有请求走 doRequest（http.js），无业务逻辑
-const { app, ipcMain, clipboard, Notification, BrowserWindow } = require('electron');
+const { app, ipcMain, clipboard, dialog, Notification, BrowserWindow } = require('electron');
 const { getConfig, saveConfig } = require('./app-config');
 const { rebuildClient } = require('./http');
 const { getAutoStart, setAutoStart } = require('./autostart');
@@ -74,6 +74,27 @@ function register() {
     clearClipboardDelayed(30000);
   });
   ipcMain.on('clipboard:clear', () => clipboard.writeText(''));
+
+  // ===== 应用退出 =====
+  // 渲染层调用此通道，主进程弹原生确认对话框后再真正退出
+  ipcMain.handle('app:quit', async () => {
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    const { response } = await dialog.showMessageBox(win || new BrowserWindow({ show: false }), {
+      type: 'question',
+      buttons: ['退出', '取消'],
+      defaultId: 0,
+      cancelId: 1,
+      title: '确认退出',
+      message: '确定要退出 GuardVault 客户端吗？',
+      detail: '退出后将无法查看动态验证码，直到重新启动应用。',
+    });
+    if (response === 0) {
+      app.isQuiting = true;
+      app.quit();
+      return true;
+    }
+    return false;
+  });
 
   // ===== 通知 =====
   ipcMain.on('notify', (_, { title, body }) => {

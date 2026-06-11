@@ -48,7 +48,7 @@ export async function login(request, reply) {
     const { failCount, locked } = await recordLoginFail(user.id, maxFail, lockMinutes);
     await recordFailedAttempt(clientIp, username, 'user_login');
 
-    await writeLog({
+    writeLog({
       operatorId: user.id, operatorName: username,
       actionType: 'USER_LOGIN', actionDesc: '用户登录失败：密码错误',
       clientIp, userAgent, result: 0, failReason: '密码错误',
@@ -81,16 +81,28 @@ export async function login(request, reply) {
   };
 
   if (totpEnabled && totpCode) {
+    // 先尝试 TOTP 动态码，失败后尝试一次性恢复码
     const totpValid = await verifyTotp(user.id, totpCode);
-    if (!totpValid) {
-      await writeLog({
+    const usedRecovery = !totpValid && (totpCode.includes('-') || totpCode.length === 9)
+      ? await consumeRecoveryCode(user.id, totpCode)
+      : false;
+    if (!totpValid && !usedRecovery) {
+      writeLog({
         operatorId: user.id, operatorName: username,
         actionType: 'USER_LOGIN', actionDesc: '用户登录失败：TOTP验证失败',
         clientIp, userAgent, result: 0, failReason: 'TOTP验证失败',
       });
       return fail(reply, ErrorCode.WRONG_CREDENTIALS, 'TOTP验证码错误');
     }
+    if (usedRecovery) {
+      writeLog({
+        operatorId: user.id, operatorName: username,
+        actionType: 'USER_LOGIN', actionDesc: '用户使用恢复码登录',
+        clientIp, userAgent, result: 1,
+      });
+    }
 
+    await clearChallenge(user.id);
     await clearLoginFail(user.id, clientIp);
     await revokeUserRefreshTokens(user.id);
     const { token: refreshToken, expireAt: refreshExpireAt } = await createRefreshToken(user.id);
@@ -100,7 +112,7 @@ export async function login(request, reply) {
     const token = signToken({ id: user.id, username: user.username, role: user.role, deptId: user.deptId ?? null }, expireSeconds);
     const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
 
-    await writeLog({
+    writeLog({
       operatorId: user.id, operatorName: username,
       actionType: 'USER_LOGIN', actionDesc: '用户登录成功',
       clientIp, userAgent, result: 1,
@@ -118,7 +130,7 @@ export async function login(request, reply) {
   const token = signToken({ id: user.id, username: user.username, role: user.role, deptId: user.deptId ?? null }, expireSeconds);
   const expireAt = new Date(Date.now() + expireSeconds * 1000).toISOString();
 
-  await writeLog({
+  writeLog({
     operatorId: user.id, operatorName: username,
     actionType: 'USER_LOGIN', actionDesc: '用户登录成功',
     clientIp, userAgent, result: 1,
@@ -130,7 +142,7 @@ export async function login(request, reply) {
 export async function logout(request, reply) {
   await revokeToken(request.token);
   await revokeUserRefreshTokens(request.user.id);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'USER_LOGOUT', actionDesc: '用户登出',
     clientIp: request.ip, result: 1,

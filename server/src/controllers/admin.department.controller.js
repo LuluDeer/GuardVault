@@ -39,7 +39,7 @@ export async function createDepartment(request, reply) {
 
   const dept = await deptService.createDepartment(parsed.data);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     actionType: 'DEPT_CREATE',
@@ -75,7 +75,7 @@ export async function updateDepartment(request, reply) {
 
   const dept = await deptService.updateDepartment(id, parsed.data);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     actionType: 'DEPT_UPDATE',
@@ -96,7 +96,7 @@ export async function deleteDepartment(request, reply) {
 
   await deptService.deleteDepartment(id);
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id,
     operatorName: request.user.username,
     actionType: 'DEPT_DELETE',
@@ -146,7 +146,7 @@ export async function addDeptMembers(request, reply) {
   if (!dept) return fail(reply, ErrorCode.PARAM_ERROR, '部门不存在');
 
   const result = await deptService.assignUsersToDept(parsed.data.userIds, deptId);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     actionType: 'DEPT_ADD_MEMBERS', targetDeptId: deptId, targetDeptName: dept.name,
     actionDesc: `向部门 ${dept.name} 添加 ${result.assigned} 名成员`,
@@ -165,7 +165,7 @@ export async function removeDeptMember(request, reply) {
   if (!dept) return fail(reply, ErrorCode.PARAM_ERROR, '部门不存在');
 
   await deptService.removeUserFromDept(userId, deptId);
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: userId, targetDeptId: deptId, targetDeptName: dept.name,
     actionType: 'DEPT_REMOVE_MEMBER',
@@ -192,7 +192,7 @@ export async function appointDeptAdmin(request, reply) {
   const updated = await deptService.appointDeptAdmin(parsed.data.userId, deptId);
   if (!updated) return fail(reply, ErrorCode.USER_NOT_FOUND, '用户不存在');
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: parsed.data.userId, targetUsername: updated.username,
     targetDeptId: deptId, targetDeptName: dept.name,
@@ -215,7 +215,7 @@ export async function revokeDeptAdmin(request, reply) {
   const updated = await deptService.revokeDeptAdmin(userId, deptId);
   if (!updated) return fail(reply, ErrorCode.USER_NOT_FOUND, '用户不存在或非该部门管理员');
 
-  await writeLog({
+  writeLog({
     operatorId: request.user.id, operatorName: request.user.username,
     targetUserId: userId, targetUsername: updated.username,
     targetDeptId: deptId, targetDeptName: dept.name,

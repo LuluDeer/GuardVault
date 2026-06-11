@@ -494,6 +494,9 @@ onUnmounted(() => {
 });
 
 watch(searchQuery, () => {
+  // 停止所有后台倒计时定时器，避免定时器空转继续发网络请求
+  Object.values(countdownTimers).forEach(clearInterval);
+  countdownTimers = {};
   codeMap.value = {};
   countdownMap.value = {};
 });

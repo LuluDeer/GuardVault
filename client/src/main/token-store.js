@@ -19,10 +19,8 @@ function getPath(name) {
 function saveToken(token) {
   try {
     if (!safeStorage.isEncryptionAvailable()) {
-      // 极端环境（无 libsecret）降级为明文 + 警告
-      console.warn('[Token] safeStorage 不可用，降级明文存储');
-      fs.writeFileSync(getPath(TOKEN_FILE), token);
-      return true;
+      console.warn('[Token] safeStorage 不可用，Token 仅保存在内存中，重启后需重新登录');
+      return false; // 不写磁盘
     }
     const encrypted = safeStorage.encryptString(token);
     fs.writeFileSync(getPath(TOKEN_FILE), encrypted);
@@ -88,9 +86,8 @@ function clearUser() {
 function saveRefreshToken(token) {
   try {
     if (!safeStorage.isEncryptionAvailable()) {
-      console.warn('[RefreshToken] safeStorage 不可用，降级明文存储');
-      fs.writeFileSync(getPath(REFRESH_TOKEN_FILE), token);
-      return true;
+      console.warn('[RefreshToken] safeStorage 不可用，Token 仅保存在内存中，重启后需重新登录');
+      return false; // 不写磁盘
     }
     const encrypted = safeStorage.encryptString(token);
     fs.writeFileSync(getPath(REFRESH_TOKEN_FILE), encrypted);

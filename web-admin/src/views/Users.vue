@@ -33,6 +33,15 @@
     </el-card>
 
     <el-card style="margin-top:16px">
+      <!-- 批量操作工具栏：有选中项时显示 -->
+      <div v-if="selectedIds.length > 0" class="batch-bar">
+        <span class="batch-info">{{ t('users.batchSelected', { count: selectedIds.length }) }}</span>
+        <el-button size="small" type="success" @click="handleBatchEnable">{{ t('users.batchEnable') }}</el-button>
+        <el-button size="small" type="warning" @click="handleBatchDisable">{{ t('users.batchDisable') }}</el-button>
+        <el-button size="small" type="danger" @click="handleBatchDelete">{{ t('users.batchDelete') }}</el-button>
+        <el-button size="small" @click="selectedIds = []">{{ t('common.cancel') }}</el-button>
+      </div>
+
       <!-- 数据量 ≤ 50 用普通 el-table 体验更佳；> 50 用虚拟滚动 el-table-v2 -->
       <el-table
         v-if="total <= 50"
@@ -41,7 +50,9 @@
         border
         stripe
         style="width:100%"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column type="selection" width="48" :selectable="row => canEdit(row)" />
         <el-table-column prop="id" :label="t('common.id')" width="80" />
         <el-table-column prop="username" :label="t('users.username')" min-width="140" />
         <el-table-column :label="t('users.role')" width="120">
@@ -501,4 +512,15 @@ onMounted(() => {
 .search-card :deep(.el-card__body) { padding: 16px 20px; }
 .pager { margin-top: 16px; display: flex; justify-content: flex-end; }
 .row-actions { display: flex; gap: 4px; justify-content: center; align-items: center; }
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-5);
+  border-radius: 4px;
+}
+.batch-info { font-size: 13px; color: var(--el-color-primary); margin-right: 4px; }
 </style>

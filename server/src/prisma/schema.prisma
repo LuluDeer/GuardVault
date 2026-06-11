@@ -32,6 +32,8 @@ model SystemUser {
   lockedUntil        DateTime?           @map("locked_until")
   lastLoginTime      DateTime?           @map("last_login_time")
   lastLoginIp        String?             @map("last_login_ip") @db.VarChar(45)
+  secretViewFails    Int                 @default(0) @map("secret_view_fails")
+  secretViewLockedUntil DateTime?        @map("secret_view_locked_until")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
   deptId             Int?                @map("dept_id")
@@ -44,6 +46,7 @@ model SystemUser {
   department         Department?         @relation(fields: [deptId], references: [id])
   totpChallenge      TotpChallenge?
   totpKey            UserTotpKey?        @relation("UserTotpKey")
+  recoveryCode       TotpRecoveryCode[]
 
   @@index([deptId])
   @@index([role])
@@ -198,7 +201,7 @@ model LoginAttempt {
 
 model RefreshToken {
   id        Int        @id @default(autoincrement())
-  token     String     @unique @db.VarChar(128)
+  token     String     @unique @db.VarChar(64)
   userId    Int        @map("user_id")
   expireAt  DateTime   @map("expire_at")
   createdAt DateTime   @default(now()) @map("created_at")
@@ -221,6 +224,19 @@ model TotpChallenge {
 
   @@index([expireAt])
   @@map("totp_challenge")
+}
+
+model TotpRecoveryCode {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @map("user_id")
+  codeHash  String     @map("code_hash") @db.VarChar(64)
+  used      Boolean    @default(false)
+  usedAt    DateTime?  @map("used_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+  user      SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, used])
+  @@map("totp_recovery_code")
 }
 
 model PasswordResetToken {

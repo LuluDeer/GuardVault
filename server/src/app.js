@@ -128,17 +128,20 @@ await fastify.register(swagger, {
   },
 });
 
-await fastify.register(swaggerUi, {
-  routePrefix: '/api/docs',
-  uiConfig: {
-    docExpansion: 'list',
-    deepLinking: true,
-    tryItOutEnabled: true,
-  },
-  staticCSP: true,
-  transformSpecification: (swaggerObject) => swaggerObject,
-  transformSpecificationClone: true,
-});
+// QA-04: 生产环境不挂载 Swagger UI，避免暴露接口攻击面地图
+if (!isProd) {
+  await fastify.register(swaggerUi, {
+    routePrefix: '/api/docs',
+    uiConfig: {
+      docExpansion: 'list',
+      deepLinking: true,
+      tryItOutEnabled: true,
+    },
+    staticCSP: true,
+    transformSpecification: (swaggerObject) => swaggerObject,
+    transformSpecificationClone: true,
+  });
+}
 
 // 3. Rate-Limit - 默认全站限流（防 DDOS / 爬虫）
 await fastify.register(rateLimit, {

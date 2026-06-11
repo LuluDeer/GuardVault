@@ -178,9 +178,23 @@ function rebuildMenu() {
     { label: '刷新验证码', click: () => refreshAllCodes().then(rebuildMenu) },
     { type: 'separator' },
     { label: '显示主窗口', click: () => showWindow() },
-    { label: '退出', click: () => {
-      if (getWindow) getWindow().removeAllListeners('close');
-      app.quit();
+    { label: '退出', click: async () => {
+      const { dialog } = require('electron');
+      const win = getWindow?.();
+      const { response } = await dialog.showMessageBox(win || null, {
+        type: 'question',
+        buttons: ['退出', '取消'],
+        defaultId: 0,
+        cancelId: 1,
+        title: '确认退出',
+        message: '确定要退出 GuardVault 客户端吗？',
+        detail: '退出后将无法查看动态验证码，直到重新启动应用。',
+      });
+      if (response === 0) {
+        app.isQuiting = true;
+        if (win) win.removeAllListeners('close');
+        app.quit();
+      }
     } },
   ];
   tray.setContextMenu(Menu.buildFromTemplate(template));
