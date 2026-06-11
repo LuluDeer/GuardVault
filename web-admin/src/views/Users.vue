@@ -500,6 +500,55 @@ async function handleQuickRevokeAdmin(row) {
   } catch {}
 }
 
+// ===== 批量操作 =====
+const selectedIds = ref([])
+
+function handleSelectionChange(rows) {
+  selectedIds.value = rows.map(r => r.id)
+}
+
+async function handleBatchEnable() {
+  if (!selectedIds.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      t('users.batchEnableConfirm', { count: selectedIds.value.length }),
+      t('common.tip'), { type: 'warning' }
+    )
+    await Promise.all(selectedIds.value.map(id => updateUser(id, { status: 1 })))
+    ElMessage.success(t('common.success'))
+    selectedIds.value = []
+    fetchList()
+  } catch {}
+}
+
+async function handleBatchDisable() {
+  if (!selectedIds.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      t('users.batchDisableConfirm', { count: selectedIds.value.length }),
+      t('common.tip'), { type: 'warning' }
+    )
+    await Promise.all(selectedIds.value.map(id => updateUser(id, { status: 0 })))
+    ElMessage.success(t('common.success'))
+    selectedIds.value = []
+    fetchList()
+  } catch {}
+}
+
+async function handleBatchDelete() {
+  if (!selectedIds.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      t('users.batchDeleteConfirm', { count: selectedIds.value.length }),
+      t('common.warning'), { type: 'error', confirmButtonText: t('common.delete'), confirmButtonClass: 'el-button--danger' }
+    )
+    await Promise.all(selectedIds.value.map(id => deleteUser(id)))
+    ElMessage.success(t('users.deleteSuccess'))
+    selectedIds.value = []
+    fetchList()
+  } catch {}
+}
+
 onMounted(() => {
   // 进入用户管理时清空部门筛选，避免因上次残留筛选条件而看不到刚被任命的部门管理员
   query.deptId = ''

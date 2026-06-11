@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import * as userService from '../services/user.service.js';
-import { prisma } from '../prisma/client.js';
+import { prisma } from '../utils/prisma.js';
 import { writeLog } from '../services/log.service.js';
 import { success, fail, ErrorCode } from '../utils/response.js';
 import { validatePassword } from '../utils/password-strength.js';

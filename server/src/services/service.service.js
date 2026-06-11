@@ -229,6 +229,4 @@ export async function generateCodeForService(id) {
   return { code, remainSeconds };
 }
 
-export async function getServiceCategories() {
-  return CATEGORIES;
-}
+export { getServiceCategories } from './department.service.js';

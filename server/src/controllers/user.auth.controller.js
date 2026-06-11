@@ -81,6 +81,15 @@ export async function login(request, reply) {
   };
 
   if (totpEnabled && totpCode) {
+    // 先校验 challengeToken 合法性（含 5 次失败锁定）
+    const challengeToken = request.body.challengeToken;
+    if (challengeToken) {
+      try {
+        await validateChallenge(user.id, challengeToken);
+      } catch (err) {
+        return fail(reply, err.code ?? ErrorCode.PARAM_ERROR, err.message);
+      }
+    }
     // 先尝试 TOTP 动态码，失败后尝试一次性恢复码
     const totpValid = await verifyTotp(user.id, totpCode);
     const usedRecovery = !totpValid && (totpCode.includes('-') || totpCode.length === 9)
